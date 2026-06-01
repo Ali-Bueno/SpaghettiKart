@@ -454,6 +454,23 @@ void DrawMenuBarIcon() {
 void DrawGameMenu() {
 }
 
+void DrawAccessibilityMenu() {
+    if (UIWidgets::BeginMenu("Accessibility")) {
+        UIWidgets::CVarCheckbox(
+            "Enable Accessibility", "gAccessibility.Enabled",
+            UIWidgets::CheckboxOptions().DefaultValue(true).Tooltip("Master toggle for all accessibility features."));
+        UIWidgets::CVarCheckbox(
+            "Screen Reader (PRISM)", "gAccessibility.ScreenReader",
+            UIWidgets::CheckboxOptions().DefaultValue(true).Tooltip(
+                "Speak menus and game state through the system screen reader. Takes effect on restart."));
+        UIWidgets::CVarCheckbox(
+            "Narrate Menus", "gAccessibility.MenuNarration",
+            UIWidgets::CheckboxOptions().DefaultValue(true).Tooltip(
+                "Announce menu screens and the highlighted option as you navigate."));
+        ImGui::EndMenu();
+    }
+}
+
 void DrawEnhancementsMenu() {
     if (UIWidgets::BeginMenu("Enhancements")) {
 
@@ -480,6 +497,10 @@ void GameMenuBar::DrawElement() {
         DrawMenuBarIcon();
 
         DrawGameMenu();
+
+        ImGui::SetCursorPosY(0.0f);
+
+        DrawAccessibilityMenu();
 
         ImGui::SetCursorPosY(0.0f);
 

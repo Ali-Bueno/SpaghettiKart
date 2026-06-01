@@ -34,6 +34,7 @@
 #include "replays.h"
 #include <debug.h>
 #include "enhancements/freecam/freecam.h"
+#include "accessibility/AccessibilityManager.h"
 #include "engine/editor/Editor.h"
 #include "port/interpolation/FrameInterpolation.h"
 #include "engine/wasm.h"
@@ -1171,6 +1172,9 @@ void thread5_iteration(void) {
     FB_CreateFramebuffers();
     clear_framebuffer(0); // Clear the framebuffer
     game_state_handler();
+
+    // Accessibility: read game/menu state and drive the screen reader.
+    Accessibility_Tick();
 
     // call_render_hook();
 

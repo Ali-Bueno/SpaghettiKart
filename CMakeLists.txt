@@ -308,6 +308,8 @@ file(GLOB_RECURSE ALL_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
     "src/enhancements/freecam/*.c"
     "src/enhancements/freecam/*.cpp"
     "src/enhancements/freecam/*.h"
+    "src/accessibility/*.cpp"
+    "src/accessibility/*.h"
     "src/engine/*.cpp"
     "src/engine/*.h"
     "Resource.rc"
@@ -417,6 +419,25 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(tomlplusplus)
 target_link_libraries(${PROJECT_NAME} PRIVATE tomlplusplus::tomlplusplus)
+
+#=================== PRISM (screen reader, accessibility) ===================
+# PRISM unifies the platform screen readers / TTS engines behind one API
+# (NVDA, JAWS, SAPI, VoiceOver, Orca, Speech-Dispatcher, ...).
+# Install via vcpkg: the "ethindp-prism" port is listed in vcpkg.json.
+# When disabled, the accessibility code compiles to safe no-ops.
+option(ENABLE_PRISM "Enable PRISM screen reader support for accessibility" ON)
+if(ENABLE_PRISM)
+    find_package(prism CONFIG)
+    if(prism_FOUND)
+        target_link_libraries(${PROJECT_NAME} PRIVATE prism::prism)
+        target_compile_definitions(${PROJECT_NAME} PRIVATE ENABLE_PRISM)
+        message(STATUS "PRISM found: accessibility screen reader enabled.")
+    else()
+        message(WARNING "ENABLE_PRISM is ON but the 'prism' package was not found. "
+                        "Install it with 'vcpkg install ethindp-prism'. "
+                        "Building without screen reader output for now.")
+    endif()
+endif()
 
 #==============================================================================#
 # Libultraship Integration                                                     #
