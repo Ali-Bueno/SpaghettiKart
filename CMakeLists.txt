@@ -655,16 +655,17 @@ if(MSVC)
   if("${CMAKE_VS_PLATFORM_NAME}" STREQUAL "x64")
     target_link_options(${PROJECT_NAME} PRIVATE
           $<$<CONFIG:Debug>:
-              /INCREMENTAL
+              /INCREMENTAL;
+              /DEBUG:FASTLINK
           >
           $<$<CONFIG:Release>:
               /OPT:REF;
               /OPT:ICF;
               /INCREMENTAL:NO;
-              /FORCE:MULTIPLE
+              /FORCE:MULTIPLE;
+              /DEBUG
           >
           /MANIFEST:NO;
-          /DEBUG;
           /SUBSYSTEM:WINDOWS
       )
   elseif("${CMAKE_VS_PLATFORM_NAME}" STREQUAL "Win32")

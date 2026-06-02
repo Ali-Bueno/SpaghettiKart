@@ -37,8 +37,10 @@ bool ScreenReaderService::Initialize() {
         return false;
     }
 
+    // acquire_best may hand back a backend that is already initialized (e.g. the
+    // NVDA backend), so treat ALREADY_INITIALIZED as success, not failure.
     const PrismError err = prism_backend_initialize(mBackend);
-    if (err != PRISM_OK) {
+    if (err != PRISM_OK && err != PRISM_ERROR_ALREADY_INITIALIZED) {
         SPDLOG_WARN("[Accessibility] PRISM backend '{}' failed to initialize (error {}).",
                     prism_backend_name(mBackend), static_cast<int>(err));
         mBackend = nullptr;
