@@ -423,19 +423,31 @@ target_link_libraries(${PROJECT_NAME} PRIVATE tomlplusplus::tomlplusplus)
 #=================== PRISM (screen reader, accessibility) ===================
 # PRISM unifies the platform screen readers / TTS engines behind one API
 # (NVDA, JAWS, SAPI, VoiceOver, Orca, Speech-Dispatcher, ...).
-# Install via vcpkg: the "ethindp-prism" port is listed in vcpkg.json.
-# When disabled, the accessibility code compiles to safe no-ops.
+#
+# We link the official prebuilt PRISM release (dynamic) vendored in
+# references/prism/ rather than compiling it from source: the Windows backends
+# require the C++ ATL headers, which are not part of every VS toolchain, and the
+# prebuilt DLL exposes a plain C API so there are no ABI/CRT concerns.
+# When the prebuilt is missing, the accessibility code compiles to safe no-ops.
 option(ENABLE_PRISM "Enable PRISM screen reader support for accessibility" ON)
 if(ENABLE_PRISM)
-    find_package(prism CONFIG)
-    if(prism_FOUND)
+    set(PRISM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/references/prism)
+    if(WIN32 AND EXISTS ${PRISM_DIR}/lib/prism.lib)
+        add_library(prism::prism SHARED IMPORTED)
+        set_target_properties(prism::prism PROPERTIES
+            IMPORTED_LOCATION ${PRISM_DIR}/bin/prism.dll
+            IMPORTED_IMPLIB ${PRISM_DIR}/lib/prism.lib
+            INTERFACE_INCLUDE_DIRECTORIES ${PRISM_DIR}/include)
         target_link_libraries(${PROJECT_NAME} PRIVATE prism::prism)
         target_compile_definitions(${PROJECT_NAME} PRIVATE ENABLE_PRISM)
-        message(STATUS "PRISM found: accessibility screen reader enabled.")
+        # Ship prism.dll next to the executable.
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${PRISM_DIR}/bin/prism.dll $<TARGET_FILE_DIR:${PROJECT_NAME}>)
+        message(STATUS "PRISM prebuilt found: accessibility screen reader enabled.")
     else()
-        message(WARNING "ENABLE_PRISM is ON but the 'prism' package was not found. "
-                        "Install it with 'vcpkg install ethindp-prism'. "
-                        "Building without screen reader output for now.")
+        message(WARNING "ENABLE_PRISM is ON but the prebuilt PRISM was not found at "
+                        "${PRISM_DIR}. Building without screen reader output for now.")
     endif()
 endif()
 

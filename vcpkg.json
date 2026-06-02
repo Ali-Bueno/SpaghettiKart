@@ -29,8 +29,7 @@
     "tinyxml2",
     "spdlog",
     "libogg",
-    "libvorbis",
-    "ethindp-prism"
+    "libvorbis"
   ],
   "builtin-baseline": "2e58bb35ff7a3a037920d959ce20cb4d8c22319a"
 }
