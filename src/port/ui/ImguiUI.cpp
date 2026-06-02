@@ -478,13 +478,30 @@ void DrawAccessibilityMenu() {
         UIWidgets::CVarCheckbox(
             "Blind Drive Assist", "gAccessibility.DriveAssist",
             UIWidgets::CheckboxOptions().DefaultValue(true).Tooltip(
-                "Forza-style guidance: spoken curve warnings, approach/progress beeps, and the "
-                "game's engine audio panned toward the side to steer (centered = aligned)."));
+                "Audio guidance for blind driving: spoken curve warnings, approach/progress beeps, "
+                "an edge-proximity beep, and the game's engine audio panned as a directional reference."));
+        UIWidgets::CVarCombobox(
+            "Drive Assist: Engine Pan Mode", "gAccessibility.DriveAssistPanMode",
+            std::vector<const char*>{ "Lane position (Top Speed)", "Steering error" },
+            UIWidgets::ComboboxOptions().DefaultIndex(0).Tooltip(
+                "Lane position: the engine pans toward the edge you have drifted to; centered means you "
+                "are on the racing line (in a curve, keep steering to stay centered). Steering error: the "
+                "engine pans toward the side to steer so the upcoming path lines up with your facing."));
+        UIWidgets::CVarSliderInt(
+            "Drive Assist: Pan Strength", "gAccessibility.DriveAssistPanStrength",
+            UIWidgets::IntSliderOptions().Min(0).Max(100).Step(5).DefaultValue(60).Format("%d%%").Tooltip(
+                "How far the engine audio leans left/right. Lower is gentler and easier to keep centered; "
+                "higher gives a stronger directional signal. Adjust live while driving to find your comfort."));
         UIWidgets::CVarCheckbox(
             "Drive Assist: Invert Sides", "gAccessibility.DriveAssistInvert",
             UIWidgets::CheckboxOptions().DefaultValue(false).Tooltip(
-                "Invert the engine pan: sound moves opposite the error, so you steer to bring it "
-                "back to center. Some players prefer this error-correction style."));
+                "Invert the engine pan so the sound moves to the opposite side. Some players prefer "
+                "steering to bring the sound back to center."));
+        UIWidgets::CVarCheckbox(
+            "Edge Proximity Cue", "gAccessibility.EdgeCue",
+            UIWidgets::CheckboxOptions().DefaultValue(true).Tooltip(
+                "Play a short beep, panned to the side, when you drift close to a track edge - a "
+                "warning before you go off-road."));
         ImGui::EndMenu();
     }
 }

@@ -14,6 +14,10 @@
 extern "C" {
 #include <common_structs.h> // Player
 #include <waypoints.h>      // gPathExpectedRotation + per-player path globals
+// Signed lateral position on the track: -1 = left edge, 0 = center, +1 = right
+// edge (magnitude > 1 once off the track). Defined in code_80005FD0.c, where the
+// game uses it to keep the AI on the racing line.
+f32 calculate_track_position_factor(f32 posX, f32 posZ, u16 waypointIndex, s32 pathIndex);
 }
 
 extern "C" {
@@ -26,10 +30,20 @@ using namespace AccessibilityStrings;
 
 namespace {
 
+// Engine pan models (CVAR_ACCESS_DRIVE_PAN_MODE).
+constexpr int kPanModeLateral = 0; // pan by lateral lane position (Top Speed style)
+constexpr int kPanModeHeading = 1; // pan by heading error (side to steer)
+
 // Angle units are s16 binary angles: 0x10000 == 360 degrees (~182 per degree).
 constexpr int kLookAhead = 3;
 constexpr int kEngineDeadzone = 1500; // ~8 deg: within this, engine stays centered
 constexpr int kEnginePanFull = 12000; // ~66 deg: full lean beyond this (continuous)
+
+// Lateral-position model: within this fraction of center the engine stays put.
+constexpr float kLateralDeadzone = 0.08f;
+// Edge-proximity cue thresholds (hysteresis) on the lateral position factor.
+constexpr float kEdgeWarn = 0.82f;  // fire the cue when this close to an edge
+constexpr float kEdgeClear = 0.62f; // re-arm only after pulling back inside this
 
 constexpr int kProbe = 4;          // window (points) for measuring local turn
 constexpr int kCurveOn = 1800;     // net turn over kProbe that counts as a curve
@@ -65,6 +79,7 @@ void DriveAssist::Reset() {
     mCurveAnnounced = false;
     mApproachBeeps = 0;
     mWasInCurve = false;
+    mWasNearEdge = false;
     mSmoothedPan = 0.0f;
 }
 
@@ -89,23 +104,51 @@ void DriveAssist::Tick(ScreenReaderService& reader) {
     }
     const int nearest = gNearestPathPointByPlayerId[playerId];
 
+    // Signed lateral position on the track (-1 left edge .. 0 center .. +1 right
+    // edge), the same quantity the game computes for the AI. Drives pan mode 0
+    // and the edge cue. Computed once and shared by both.
+    const float lateralFactor = std::clamp(
+        calculate_track_position_factor(player->pos[0], player->pos[2],
+                                        static_cast<uint16_t>(nearest), pathIndex),
+        -2.0f, 2.0f);
+
     // --- Layer 4: directional reference (pan the player's engine audio) ---
     {
-        const int idx = (nearest + kLookAhead) % count;
-        const int16_t error = static_cast<int16_t>(rotPath[idx] - player->rotation[1]);
-        const int magnitude = std::abs(static_cast<int>(error));
+        const int panMode = CVarGetInteger(CVAR_ACCESS_DRIVE_PAN_MODE, CVAR_ACCESS_DRIVE_PAN_MODE_DEFAULT);
+        // User-tunable scale (0..1) so the lean can be softened to taste.
+        const float strength = std::clamp(
+            CVarGetInteger(CVAR_ACCESS_DRIVE_PAN_STRENGTH, CVAR_ACCESS_DRIVE_PAN_STRENGTH_DEFAULT) / 100.0f,
+            0.0f, 1.0f);
         float pan = 0.0f;
-        if (magnitude >= kEngineDeadzone) {
-            pan = std::clamp(static_cast<float>(error) / kEnginePanFull, -1.0f, 1.0f);
-            if (!kPositiveAngleIsRight) {
-                pan = -pan;
+        if (panMode == kPanModeHeading) {
+            // Heading-error model: pan toward the side to steer so the path ahead
+            // lines up with where the kart is pointing.
+            const int idx = (nearest + kLookAhead) % count;
+            const int16_t error = static_cast<int16_t>(rotPath[idx] - player->rotation[1]);
+            if (std::abs(static_cast<int>(error)) >= kEngineDeadzone) {
+                pan = std::clamp(static_cast<float>(error) / kEnginePanFull, -1.0f, 1.0f);
+                if (!kPositiveAngleIsRight) {
+                    pan = -pan;
+                }
             }
-            if (CVarGetInteger(CVAR_ACCESS_DRIVE_INVERT, CVAR_ACCESS_DRIVE_INVERT_DEFAULT) != 0) {
-                pan = -pan;
+        } else {
+            // Lateral-position model (Top Speed): pan toward the edge you have
+            // drifted to; centered = on the racing line. In a curve the line moves
+            // under you, so the pan leans outward until you steer to follow it.
+            // Quadratic response (the original Top Speed curve): gentle near the
+            // center, only firm near the edges, so small wobbles at speed don't
+            // slam the sound from side to side.
+            if (std::abs(lateralFactor) >= kLateralDeadzone) {
+                const float f = std::clamp(lateralFactor, -1.0f, 1.0f);
+                pan = (f < 0.0f ? -1.0f : 1.0f) * f * f;
             }
         }
+        pan *= strength;
+        if (CVarGetInteger(CVAR_ACCESS_DRIVE_INVERT, CVAR_ACCESS_DRIVE_INVERT_DEFAULT) != 0) {
+            pan = -pan;
+        }
         // Low-pass filter so the pan eases toward the target instead of jumping.
-        constexpr float kSmooth = 0.18f;
+        constexpr float kSmooth = 0.12f;
         mSmoothedPan += (pan - mSmoothedPan) * kSmooth;
         Accessibility_SetKartAudioPan(mSmoothedPan);
     }
@@ -149,4 +192,18 @@ void DriveAssist::Tick(ScreenReaderService& reader) {
         AudioCueService::Instance().PlayBeep(CueBeep::Curve, 1.5f); // exit
     }
     mWasInCurve = inCurve;
+
+    // --- Layer 5: edge-proximity cue (about to run off the track) ---
+    if (CVarGetInteger(CVAR_ACCESS_EDGE_CUE, CVAR_ACCESS_EDGE_CUE_DEFAULT) != 0) {
+        const float mag = std::abs(lateralFactor);
+        if (!mWasNearEdge && mag >= kEdgeWarn) {
+            mWasNearEdge = true;
+            // Pan the beep toward the edge being approached. This is a position
+            // warning, so it is not affected by the engine-pan invert option.
+            const float side = lateralFactor > 0.0f ? 0.85f : -0.85f;
+            AudioCueService::Instance().PlayBeep(CueBeep::Edge, 1.0f, side);
+        } else if (mWasNearEdge && mag <= kEdgeClear) {
+            mWasNearEdge = false;
+        }
+    }
 }

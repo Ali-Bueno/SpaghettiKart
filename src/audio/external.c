@@ -83,13 +83,38 @@ struct Unk_800E9F7C D_800E9F7C[] = {
     { { 0.0f, 0.0f, 0.0f }, 1.0f, 1.0f, 0, 3800.0f, 3.4f, 0.4f, -1.0f, 0.4f, 1100.0f, 630.0f, 3600.0f, 1.0f }
 };
 
-// Accessibility blind drive assist: laterally offset player one's kart audio
-// source (engine + own kart sounds) so it pans left/right as a directional
-// reference. pan: -1 (left) .. +1 (right), 0 = centered. The source position is
-// listener-relative and otherwise stays at the origin, so this only affects the
-// player's own kart audio - not music or other karts.
+// Accessibility blind drive assist: pan player one's own kart engine audio
+// left/right as a directional reference. pan: -1 (left) .. +1 (right), 0 = center.
+//
+// How the game's audio works: a sound's per-channel PAN is a single byte sp33
+// (0 = left, 0x40 = center, 0x7F = right), computed in func_800C19D0 from the
+// sound's camera-relative (lateral, forward) vector and applied to the sequence
+// channel - completely separate from the channel VOLUME (sp3C). Earlier attempts
+// drove the pan by repositioning the sound in the world, but that is coupled to
+// the camera (and the audio thread samples the camera at a different time, so it
+// could not be cancelled) and it shares the same vector as the volume.
+//
+// So we bypass all of that: record the desired pan as the final channel pan byte
+// here, and in func_800C19D0 substitute it for the player's own kart sounds. This
+// sets the left/right balance directly, leaves the volume untouched, and is fully
+// independent of the camera and of where the player is on the track.
+static s8 sAccessKartPanByte = 0x40; // 0 = left .. 0x40 center .. 0x7F right
+static u8 sAccessKartPanActive = 0;  // set once the drive assist provides a pan
 void Accessibility_SetKartAudioPan(f32 pan) {
-    D_800E9F7C[0].pos[0] = pan * 110.0f;
+    s32 panByte;
+    if (pan > 1.0f) {
+        pan = 1.0f;
+    } else if (pan < -1.0f) {
+        pan = -1.0f;
+    }
+    panByte = 0x40 + (s32) (pan * 63.0f); // -1 -> 1, 0 -> 64, +1 -> 127
+    if (panByte < 0) {
+        panByte = 0;
+    } else if (panByte > 0x7F) {
+        panByte = 0x7F;
+    }
+    sAccessKartPanByte = (s8) panByte;
+    sAccessKartPanActive = 1;
 }
 
 struct Unk_800EA06C D_800EA06C[NUM_PLAYERS] = { { { 0.0f, 1.0f, 1.0f }, 0 }, { { 0.0f, 1.0f, 1.0f }, 0 },
@@ -371,7 +396,17 @@ void func_800C19D0(u8 arg0, u8 arg1, u8 arg2) {
             sp3B = func_800C15D0(arg0, arg1, arg2);
             sp34 = func_800C1934(arg0, arg1) * *temp_s0->unk10;
             sp33 = func_800C16E8(*temp_s0->unk00[0], *temp_s0->unk08, temp_s0->cameraId);
-            
+
+            // Accessibility drive assist: override the pan for player one's own
+            // kart sounds with our directional value. The bank entry's unk00 points
+            // straight at the sound's position Vec3f (set in the sound-request
+            // processing: unk00 = &position[0]); for the player's own kart that
+            // position is D_800E9F7C[0].pos. Only sp33 (pan) is changed - the
+            // volume (sp3C) is left untouched.
+            if (sAccessKartPanActive && ((f32*) temp_s0->unk00 == &D_800E9F7C[0].pos[0])) {
+                sp33 = sAccessKartPanByte;
+            }
+
             // Set surround effect index when in surround mode
             if (gAudioLibSoundMode == SOUND_MODE_SURROUND) {
                 struct SequenceChannel* channel = gSequencePlayers[2].channels[arg2];

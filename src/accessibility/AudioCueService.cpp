@@ -10,6 +10,7 @@ namespace {
 
 constexpr HMAS_AudioId kApproachBeepId = 0x40ACCE51;
 constexpr HMAS_AudioId kCurveBeepId = 0x40ACCE52;
+constexpr HMAS_AudioId kEdgeBeepId = 0x40ACCE53;
 constexpr HMAS_ChannelId kBeepChannel = HMAS_ENV;
 
 constexpr int kSampleRate = 32000;
@@ -84,6 +85,7 @@ bool AudioCueService::EnsureInitialized() {
     if (mApproachWav.empty()) {
         BuildBeepWav(mApproachWav, 760.0f, 2600); // bright, short
         BuildBeepWav(mCurveWav, 420.0f, 3000);    // lower, distinct timbre
+        BuildBeepWav(mEdgeWav, 980.0f, 1500);     // high and urgent, very short
     }
     HMAS* hmas = GameEngine::Instance->gHMAS;
     if (!hmas->IsIDRegistered(kApproachBeepId)) {
@@ -92,19 +94,28 @@ bool AudioCueService::EnsureInitialized() {
     if (!hmas->IsIDRegistered(kCurveBeepId)) {
         hmas->RegisterSound(kCurveBeepId, mCurveWav.data(), static_cast<uint32_t>(mCurveWav.size()));
     }
+    if (!hmas->IsIDRegistered(kEdgeBeepId)) {
+        hmas->RegisterSound(kEdgeBeepId, mEdgeWav.data(), static_cast<uint32_t>(mEdgeWav.size()));
+    }
     mReady = hmas->IsIDRegistered(kApproachBeepId);
     return mReady;
 }
 
-void AudioCueService::PlayBeep(CueBeep kind, float pitch) {
+void AudioCueService::PlayBeep(CueBeep kind, float pitch, float pan) {
     if (!EnsureInitialized()) {
         return;
     }
     HMAS* hmas = GameEngine::Instance->gHMAS;
-    const HMAS_AudioId id = (kind == CueBeep::Approach) ? kApproachBeepId : kCurveBeepId;
+    HMAS_AudioId id;
+    switch (kind) {
+        case CueBeep::Approach: id = kApproachBeepId; break;
+        case CueBeep::Curve:    id = kCurveBeepId; break;
+        case CueBeep::Edge:     id = kEdgeBeepId; break;
+        default: return;
+    }
 
     hmas->Play(kBeepChannel, id, false);
-    hmas->SetPan(kBeepChannel, 0.0f); // beeps are always centered
+    hmas->SetPan(kBeepChannel, std::clamp(pan, -1.0f, 1.0f));
     hmas->SetPitch(kBeepChannel, std::clamp(pitch, 0.25f, 3.0f));
     hmas->SetVolume(kBeepChannel, kBeepVolume);
 }
