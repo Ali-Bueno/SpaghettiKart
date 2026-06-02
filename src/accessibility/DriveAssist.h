@@ -14,15 +14,19 @@ class ScreenReaderService;
  *  2. Approach beeps: up to three rising-pitch centered beeps as the curve
  *     entry gets nearer.
  *  3. Curve-progress beeps: a distinct timbre at curve entry and exit.
- *  4. Directional reference: the player's engine audio is panned
- *     (Accessibility_SetKartAudioPan). Two selectable models (CVAR_..._PAN_MODE):
- *       - Lateral position (default, Top Speed style): pans toward the edge you
- *         have drifted to; centered = on the racing line. A curve moves the line
- *         under you, so the pan leans outward until you steer to follow it.
- *       - Heading error: pans toward the side to steer so the path ahead lines
- *         up with the kart's facing.
- *  5. Edge-proximity cue: a short beep, panned to the side, when you drift close
- *     to a track edge - a warning before going off-road.
+ *  4. Steering Guide: the player's engine audio is panned toward the side to steer
+ *     to follow the racing line, so the player drives TOWARD the sound
+ *     (Accessibility_SetKartAudioPan). Two models (CVAR_..._PAN_MODE):
+ *       - Racing line / pure-pursuit (default): aims at a look-ahead point on the
+ *         line and pans by (bearing - heading), so it both recenters you onto the
+ *         line and anticipates the curve. Mirrors the game's own AI steering.
+ *       - Heading only: pans to align the kart's facing with the path ahead
+ *         (curve anticipation, no lateral centering).
+ *     Look-ahead distance is the "anticipation" (CVAR_..._LOOKAHEAD); Invert flips
+ *     the side.
+ *  5. Edge-proximity cue: as you drift toward a track edge the cue beeps panned to
+ *     that side, getting faster and higher-pitched the closer you get, and turning
+ *     into a steady held tone right at the limit - a continuous off-road warning.
  */
 class DriveAssist {
   public:
@@ -32,7 +36,7 @@ class DriveAssist {
   private:
     bool mCurveAnnounced = false; // a curve ahead has been announced (episode)
     int mApproachBeeps = 0;       // approach beeps played for the current curve
-    bool mWasInCurve = false;     // for entry/exit progress beeps
-    bool mWasNearEdge = false;    // hysteresis latch for the edge-proximity cue
+    bool mWasInCurve = false;     // for entry/exit progress beeps (hysteretic)
+    int mEdgeBeepTimer = 0;       // ticks until the next edge beep (rate scales with closeness)
     float mSmoothedPan = 0.0f;    // low-pass filtered engine pan (avoids abrupt jumps)
 };

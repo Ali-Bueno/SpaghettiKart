@@ -482,21 +482,28 @@ void DrawAccessibilityMenu() {
                 "an edge-proximity beep, and the game's engine audio panned as a directional reference."));
         UIWidgets::CVarCombobox(
             "Drive Assist: Engine Pan Mode", "gAccessibility.DriveAssistPanMode",
-            std::vector<const char*>{ "Lane position (Top Speed)", "Steering error" },
+            std::vector<const char*>{ "Racing line (recommended)", "Curve heading only" },
             UIWidgets::ComboboxOptions().DefaultIndex(0).Tooltip(
-                "Lane position: the engine pans toward the edge you have drifted to; centered means you "
-                "are on the racing line (in a curve, keep steering to stay centered). Steering error: the "
-                "engine pans toward the side to steer so the upcoming path lines up with your facing."));
+                "The engine sound leans toward the side you should steer - drive TOWARD the sound to "
+                "follow the racing line. Racing line: aims at a point ahead on the line, so it both "
+                "recenters you and leans into upcoming curves (best for staying on track). Curve heading "
+                "only: leans for upcoming curves but does not correct side-to-side drift."));
         UIWidgets::CVarSliderInt(
             "Drive Assist: Pan Strength", "gAccessibility.DriveAssistPanStrength",
             UIWidgets::IntSliderOptions().Min(0).Max(100).Step(5).DefaultValue(60).Format("%d%%").Tooltip(
                 "How far the engine audio leans left/right. Lower is gentler and easier to keep centered; "
                 "higher gives a stronger directional signal. Adjust live while driving to find your comfort."));
+        UIWidgets::CVarSliderInt(
+            "Drive Assist: Anticipation", "gAccessibility.DriveAssistLookAhead",
+            UIWidgets::IntSliderOptions().Min(1).Max(20).Step(1).DefaultValue(5).Format("%d").Tooltip(
+                "How far ahead the steering guide looks, in track points. Lower reacts to drift sooner and "
+                "centers more tightly; higher is smoother and leans into curves earlier. If the sound feels "
+                "twitchy, raise it; if you drift off before it reacts, lower it."));
         UIWidgets::CVarCheckbox(
             "Drive Assist: Invert Sides", "gAccessibility.DriveAssistInvert",
             UIWidgets::CheckboxOptions().DefaultValue(false).Tooltip(
-                "Invert the engine pan so the sound moves to the opposite side. Some players prefer "
-                "steering to bring the sound back to center."));
+                "Invert the pan side. By default you steer TOWARD the sound; enable this if you would "
+                "rather steer AWAY from it (the sound then marks where you are, not where to go)."));
         UIWidgets::CVarCheckbox(
             "Edge Proximity Cue", "gAccessibility.EdgeCue",
             UIWidgets::CheckboxOptions().DefaultValue(true).Tooltip(
