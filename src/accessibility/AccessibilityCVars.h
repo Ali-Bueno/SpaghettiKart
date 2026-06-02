@@ -10,7 +10,7 @@
 #define CVAR_ACCESS_OFFROAD_CUE "gAccessibility.OffRoadCue"
 #define CVAR_ACCESS_DRIVE_ASSIST "gAccessibility.DriveAssist"
 #define CVAR_ACCESS_DRIVE_INVERT "gAccessibility.DriveAssistInvert"
-// Engine pan model: 0 = racing-line pure pursuit (default), 1 = heading error only.
+// Engine pan model: 0 = curve direction (heading), 1 = racing line (pure pursuit, default).
 #define CVAR_ACCESS_DRIVE_PAN_MODE "gAccessibility.DriveAssistPanMode"
 // Engine pan strength 0-100%: scales how far the audio leans. Lower = gentler.
 #define CVAR_ACCESS_DRIVE_PAN_STRENGTH "gAccessibility.DriveAssistPanStrength"
@@ -19,6 +19,10 @@
 #define CVAR_ACCESS_DRIVE_LOOKAHEAD "gAccessibility.DriveAssistLookAhead"
 // Short panned beep when the kart drifts close to a track edge (pre off-road warning).
 #define CVAR_ACCESS_EDGE_CUE "gAccessibility.EdgeCue"
+// Edge cue sensitivity 0-100: how early (how far from the edge) the cue starts. The
+// cue stays silent while you are centered; higher = it begins sooner / from further
+// in, lower = it stays silent until you are closer to the edge.
+#define CVAR_ACCESS_EDGE_SENSITIVITY "gAccessibility.EdgeSensitivity"
 
 // Default values used both by the logic (CVarGetInteger fallbacks) and the UI
 // checkboxes, so the menu state and behaviour always agree.
@@ -29,7 +33,8 @@
 #define CVAR_ACCESS_OFFROAD_CUE_DEFAULT 1
 #define CVAR_ACCESS_DRIVE_ASSIST_DEFAULT 1
 #define CVAR_ACCESS_DRIVE_INVERT_DEFAULT 0
-#define CVAR_ACCESS_DRIVE_PAN_MODE_DEFAULT 0
+#define CVAR_ACCESS_DRIVE_PAN_MODE_DEFAULT 1
 #define CVAR_ACCESS_DRIVE_PAN_STRENGTH_DEFAULT 60
-#define CVAR_ACCESS_DRIVE_LOOKAHEAD_DEFAULT 5
+#define CVAR_ACCESS_DRIVE_LOOKAHEAD_DEFAULT 7
 #define CVAR_ACCESS_EDGE_CUE_DEFAULT 1
+#define CVAR_ACCESS_EDGE_SENSITIVITY_DEFAULT 50

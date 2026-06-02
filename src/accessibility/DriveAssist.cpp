@@ -36,27 +36,33 @@ using namespace AccessibilityStrings;
 
 namespace {
 
-// Engine pan models (CVAR_ACCESS_DRIVE_PAN_MODE).
-constexpr int kPanModePursuit = 0; // steer toward a look-ahead point on the racing line (default)
-constexpr int kPanModeHeading = 1; // pan by heading error vs the path ahead (curve anticipation only)
+// Engine pan models (CVAR_ACCESS_DRIVE_PAN_MODE), selectable in the menu.
+constexpr int kPanModeCurve = 0;      // heading error vs the path ahead: lean toward the upcoming curve
+constexpr int kPanModeRacingLine = 1; // pure pursuit to a look-ahead point: also recenters onto the line
 
 // Angle units are s16 binary angles: 0x10000 == 360 degrees (~182 per degree).
 constexpr int kSteerDeadzone = 0x0300; // ~4 deg: within this the engine stays centered
 constexpr int kSteerPanFull = 0x2000;  // ~45 deg: full lean beyond this (continuous)
 
-// Edge-proximity cue (Forza-style) on the lateral position factor (0 = center,
-// 1 = edge/off-track). From kEdgeOnset toward the edge the cue beeps, the beeps
-// getting faster and higher-pitched the closer you get; at kEdgeSolid (the real
-// edge) it becomes a steady held tone. The onset is deliberately low and the
-// solid threshold sits at the edge so there is a WIDE band of accelerating beeps
-// (a warning while still on the track), instead of jumping straight to the tone.
-constexpr float kEdgeOnset = 0.35f;        // start warning at 35% of the way to the edge
-constexpr float kEdgeSolid = 1.00f;        // at/over the edge: constant held tone
-constexpr float kEdgePan = 0.90f;          // how hard the cue pans toward the edge
-constexpr float kEdgeTonePitch = 1.40f;    // pitch of the held constant tone
-constexpr float kEdgeBeepPitchMax = 1.80f; // discrete beep pitch at the edge (1.0 at onset)
-constexpr int kEdgeIntervalFar = 28;       // ticks between beeps just past the onset (slow)
-constexpr int kEdgeIntervalNear = 3;       // ticks between beeps right before the held tone (fast)
+// Edge-proximity cue on the lateral position factor (0 = center, 1 = edge/off-track).
+// It is SILENT while you are comfortably centered (within the onset), then beeps
+// once you drift past the onset toward an edge - faster and higher-pitched the
+// closer you get, panning toward that edge - and becomes a steady held tone at
+// kEdgeSolid (the edge). The onset is set by the Edge Sensitivity slider: it slides
+// between kEdgeOnsetFar (only warns when very close) and kEdgeOnsetNear (warns from
+// further in). Proximity p (remapped onset..solid) drives the rate and the pitch.
+// Tuned to measured telemetry: the real road edge is at |factor| ~= 1.0, and normal
+// (centered) driving averages ~0.59, so the onset band sits high to keep the centre
+// genuinely quiet and only warn in the outer part of the lane.
+constexpr float kEdgeOnsetFar = 0.95f;     // sensitivity 0: silent until right at the edge
+constexpr float kEdgeOnsetNear = 0.45f;    // sensitivity 100: starts ~halfway out
+constexpr float kEdgeSolid = 1.05f;        // at/just past the edge: constant held tone
+constexpr float kEdgePan = 0.90f;          // max pan toward the edge (reached at the edge)
+constexpr float kEdgeTonePitch = 1.80f;    // pitch of the held constant tone (the peak)
+constexpr float kEdgeBeepPitchMin = 0.80f; // beep pitch just past the onset
+constexpr float kEdgeBeepPitchMax = 1.80f; // beep pitch just before the held tone (matches the tone)
+constexpr int kEdgeIntervalFar = 12;       // ticks between beeps just past the onset (slow)
+constexpr int kEdgeIntervalNear = 3;       // ticks between beeps right before the held tone (fast, still discrete)
 
 constexpr int kProbe = 4;          // window (points) for measuring local turn
 constexpr int kCurveOn = 1800;     // net turn over kProbe that counts as entering a curve
@@ -133,8 +139,9 @@ void DriveAssist::Tick(ScreenReaderService& reader) {
     const int nearest = gNearestPathPointByPlayerId[playerId];
 
     // Signed lateral position on the track (-1 left edge .. 0 center .. +1 right
-    // edge), the same quantity the game computes for the AI. Drives pan mode 0
-    // and the edge cue. Computed once and shared by both.
+    // edge), the same quantity the game computes for the AI. Drives the edge cue.
+    // Telemetry over a full lap confirmed the real road edge sits at |factor| ~= 1.0
+    // (on-road averaged 0.59 and topped out ~1.2; off-road surfaces began ~1.03).
     const float lateralFactor = std::clamp(
         calculate_track_position_factor(player->pos[0], player->pos[2],
                                         static_cast<uint16_t>(nearest), pathIndex),
@@ -154,18 +161,18 @@ void DriveAssist::Tick(ScreenReaderService& reader) {
         // curves earlier.
         const int lookAhead = std::clamp(
             CVarGetInteger(CVAR_ACCESS_DRIVE_LOOKAHEAD, CVAR_ACCESS_DRIVE_LOOKAHEAD_DEFAULT), 1, 30);
+        // A steer error (toward where to go) drives the pan, so you drive TOWARD the
+        // sound. The two models differ only in how that error is found.
         const int aheadIdx = (nearest + lookAhead) % count;
-
         int16_t error;
-        if (panMode == kPanModeHeading) {
-            // Curve anticipation only: align the kart's facing with the path ahead.
-            // Leans into upcoming curves but does NOT correct lateral drift.
+        if (panMode == kPanModeCurve) {
+            // Curve direction: heading error vs the path ahead. Leans into the upcoming
+            // curve but does NOT correct lateral drift.
             error = static_cast<int16_t>(rotPath[aheadIdx] - player->rotation[1]);
         } else {
-            // Pure-pursuit (default): aim at a point ahead on the racing line and
-            // steer by (bearing - heading). This is exactly what the game's own AI
-            // does (code_80005FD0.c:1900) - it both recenters you onto the line and
-            // anticipates the curve in a single signal.
+            // Racing line / pure pursuit: aim at a point ahead on the line and steer
+            // by (bearing - heading). Mirrors the game's own AI (code_80005FD0.c:1900)
+            // - recenters onto the line AND anticipates the curve.
             const TrackPathPoint* tgt = &gTrackPaths[pathIndex][aheadIdx];
             f32 self[3] = { player->pos[0], player->pos[1], player->pos[2] };
             f32 target[3] = { static_cast<f32>(tgt->x), static_cast<f32>(tgt->y), static_cast<f32>(tgt->z) };
@@ -233,28 +240,34 @@ void DriveAssist::Tick(ScreenReaderService& reader) {
     }
     mWasInCurve = inCurve;
 
-    // --- Layer 5: edge-proximity cue (Forza-style, scaled to how close the edge is) ---
+    // --- Layer 5: edge-proximity cue (silent when centered, scales toward the edge) ---
     if (CVarGetInteger(CVAR_ACCESS_EDGE_CUE, CVAR_ACCESS_EDGE_CUE_DEFAULT) != 0) {
         const float mag = std::abs(lateralFactor);
-        if (mag <= kEdgeOnset) {
-            // Comfortably inside the track: nothing to warn about.
+        // Sensitivity 0..100 picks the onset: how far toward the edge you must drift
+        // before the cue starts. Below the onset (comfortably centered) it is SILENT.
+        const float sens = std::clamp(
+            CVarGetInteger(CVAR_ACCESS_EDGE_SENSITIVITY, CVAR_ACCESS_EDGE_SENSITIVITY_DEFAULT) / 100.0f,
+            0.0f, 1.0f);
+        const float onset = kEdgeOnsetFar + sens * (kEdgeOnsetNear - kEdgeOnsetFar);
+        if (mag <= onset) {
+            // Comfortably centered: silent.
             AudioCueService::Instance().SetEdgeTone(false, 0.0f, 0.0f);
             mEdgeBeepTimer = 0;
         } else {
-            // 0 just past the onset .. 1 at (or beyond) the edge. The cue is panned
-            // toward the edge being approached; this is position info, so it ignores
-            // the engine-pan invert option.
-            const float p = std::clamp((mag - kEdgeOnset) / (1.0f - kEdgeOnset), 0.0f, 1.0f);
-            const float side = (lateralFactor > 0.0f ? 1.0f : -1.0f) * kEdgePan;
+            // p: 0 just past the onset .. 1 at the edge. Drives the beep rate AND
+            // pitch; panned toward the edge being approached. Position info, so it
+            // ignores the engine-pan invert option.
+            const float p = std::clamp((mag - onset) / (kEdgeSolid - onset), 0.0f, 1.0f);
+            const float side = std::clamp(lateralFactor, -1.0f, 1.0f) * kEdgePan;
             if (mag >= kEdgeSolid) {
                 // Right at the limit: a steady held tone until pulled back inside.
                 AudioCueService::Instance().SetEdgeTone(true, kEdgeTonePitch, side);
                 mEdgeBeepTimer = 0;
             } else {
-                // Approaching: discrete beeps that get faster and higher with closeness.
+                // Approaching: beeps that get faster and higher the closer the edge.
                 AudioCueService::Instance().SetEdgeTone(false, 0.0f, 0.0f);
                 if (mEdgeBeepTimer <= 0) {
-                    const float pitch = 1.0f + p * (kEdgeBeepPitchMax - 1.0f);
+                    const float pitch = kEdgeBeepPitchMin + p * (kEdgeBeepPitchMax - kEdgeBeepPitchMin);
                     AudioCueService::Instance().PlayBeep(CueBeep::Edge, pitch, side);
                     mEdgeBeepTimer = static_cast<int>(
                         kEdgeIntervalFar + (kEdgeIntervalNear - kEdgeIntervalFar) * p + 0.5f);

@@ -14,19 +14,20 @@ class ScreenReaderService;
  *  2. Approach beeps: up to three rising-pitch centered beeps as the curve
  *     entry gets nearer.
  *  3. Curve-progress beeps: a distinct timbre at curve entry and exit.
- *  4. Steering Guide: the player's engine audio is panned toward the side to steer
- *     to follow the racing line, so the player drives TOWARD the sound
- *     (Accessibility_SetKartAudioPan). Two models (CVAR_..._PAN_MODE):
- *       - Racing line / pure-pursuit (default): aims at a look-ahead point on the
- *         line and pans by (bearing - heading), so it both recenters you onto the
- *         line and anticipates the curve. Mirrors the game's own AI steering.
- *       - Heading only: pans to align the kart's facing with the path ahead
- *         (curve anticipation, no lateral centering).
+ *  4. Steering Guide: the player's engine audio is panned toward the side to steer,
+ *     so the player drives TOWARD the sound (Accessibility_SetKartAudioPan). Two
+ *     selectable models (CVAR_..._PAN_MODE):
+ *       - Curve direction (heading): pans the way the upcoming path bends.
+ *         Predictable, no lateral centering.
+ *       - Racing line (pure pursuit, default): aims at a look-ahead point on the
+ *         line and pans by (bearing - heading); recenters onto the line AND
+ *         anticipates the curve (mirrors the game's own AI).
  *     Look-ahead distance is the "anticipation" (CVAR_..._LOOKAHEAD); Invert flips
  *     the side.
- *  5. Edge-proximity cue: as you drift toward a track edge the cue beeps panned to
- *     that side, getting faster and higher-pitched the closer you get, and turning
- *     into a steady held tone right at the limit - a continuous off-road warning.
+ *  5. Edge-proximity cue: silent while you are comfortably centered, then beeps
+ *     (panned toward the nearer edge) once you drift past the onset, getting faster
+ *     and higher-pitched the closer you get and becoming a steady held tone at the
+ *     limit. The onset is set by the Edge Sensitivity slider (CVAR_..._SENSITIVITY).
  */
 class DriveAssist {
   public:

@@ -33,11 +33,28 @@ void PushU16(std::vector<uint8_t>& v, uint16_t x) {
     v.push_back((x >> 8) & 0xFF);
 }
 
-// Build a 16-bit mono PCM WAV of a sine tone. When ramp is true the tone gets a
-// short attack/release so one-shot beeps don't click. When false the amplitude is
-// constant; pass a whole number of cycles for `samples` so the buffer can be
-// looped seamlessly as a steady held tone.
-void BuildBeepWav(std::vector<uint8_t>& out, float freq, int samples, bool ramp = true) {
+// Oscillator waveforms. Each cue family uses a distinct timbre so they are easy to
+// tell apart by ear (sine = smooth, square = hollow/buzzy, saw = bright/harsh).
+enum class Wave { Sine, Square, Triangle, Saw };
+
+// One waveform sample in [-1, 1] for a phase measured in cycles (only the
+// fractional part matters).
+double WaveSample(Wave wave, double phase) {
+    phase -= std::floor(phase);
+    switch (wave) {
+        case Wave::Square:   return phase < 0.5 ? 1.0 : -1.0;
+        case Wave::Triangle: return phase < 0.5 ? (4.0 * phase - 1.0) : (3.0 - 4.0 * phase);
+        case Wave::Saw:      return (2.0 * phase) - 1.0;
+        case Wave::Sine:
+        default:             return std::sin(2.0 * M_PI * phase);
+    }
+}
+
+// Build a 16-bit mono PCM WAV of a tone with the given waveform. When ramp is true
+// the tone gets a short attack/release so one-shot beeps don't click. When false
+// the amplitude is constant; pass a whole number of cycles for `samples` so the
+// buffer can be looped seamlessly as a steady held tone.
+void BuildBeepWav(std::vector<uint8_t>& out, float freq, int samples, Wave wave, bool ramp = true) {
     const uint32_t dataSize = static_cast<uint32_t>(samples) * 2;
     out.clear();
     out.reserve(44 + dataSize);
@@ -45,8 +62,8 @@ void BuildBeepWav(std::vector<uint8_t>& out, float freq, int samples, bool ramp 
     const char* riff = "RIFF";
     out.insert(out.end(), riff, riff + 4);
     PushU32(out, 36 + dataSize);
-    const char* wave = "WAVE";
-    out.insert(out.end(), wave, wave + 4);
+    const char* wave4 = "WAVE";
+    out.insert(out.end(), wave4, wave4 + 4);
     const char* fmt = "fmt ";
     out.insert(out.end(), fmt, fmt + 4);
     PushU32(out, 16);
@@ -60,10 +77,15 @@ void BuildBeepWav(std::vector<uint8_t>& out, float freq, int samples, bool ramp 
     out.insert(out.end(), data, data + 4);
     PushU32(out, dataSize);
 
+    // Harmonically rich waveforms sound louder/harsher, so trim their amplitude to
+    // keep the cues roughly balanced in loudness.
+    const double amplitude = (wave == Wave::Sine)       ? 12000.0
+                             : (wave == Wave::Triangle) ? 11000.0
+                                                        : 8500.0; // square / saw
     const int rampLen = ramp ? samples / 8 : 0;
     for (int i = 0; i < samples; ++i) {
         const double t = static_cast<double>(i) / kSampleRate;
-        const double s = std::sin(2.0 * M_PI * freq * t);
+        const double s = WaveSample(wave, freq * t);
         double gain = 1.0;
         if (rampLen > 0) {
             if (i < rampLen) {
@@ -72,7 +94,7 @@ void BuildBeepWav(std::vector<uint8_t>& out, float freq, int samples, bool ramp 
                 gain = static_cast<double>(samples - i) / rampLen;
             }
         }
-        const int16_t sample = static_cast<int16_t>(s * gain * 12000.0);
+        const int16_t sample = static_cast<int16_t>(s * gain * amplitude);
         PushU16(out, static_cast<uint16_t>(sample));
     }
 }
@@ -92,10 +114,11 @@ bool AudioCueService::EnsureInitialized() {
         return false;
     }
     if (mApproachWav.empty()) {
-        BuildBeepWav(mApproachWav, 760.0f, 2600);         // bright, short
-        BuildBeepWav(mCurveWav, 420.0f, 3000);            // lower, distinct timbre
-        BuildBeepWav(mEdgeWav, 980.0f, 1500);             // high and urgent, very short
-        BuildBeepWav(mEdgeToneWav, 1000.0f, 3200, false); // steady loopable tone (edge held)
+        // Distinct waveform per cue family so each is unmistakable by ear.
+        BuildBeepWav(mApproachWav, 700.0f, 2600, Wave::Sine);        // curve approach: smooth sine
+        BuildBeepWav(mCurveWav, 480.0f, 3000, Wave::Square);         // curve entry/exit: hollow square
+        BuildBeepWav(mEdgeWav, 900.0f, 850, Wave::Saw);              // edge proximity: harsh saw (short, stays crisp when rapid)
+        BuildBeepWav(mEdgeToneWav, 1000.0f, 3200, Wave::Saw, false); // held edge tone: saw, seamless loop
     }
     HMAS* hmas = GameEngine::Instance->gHMAS;
     if (!hmas->IsIDRegistered(kApproachBeepId)) {

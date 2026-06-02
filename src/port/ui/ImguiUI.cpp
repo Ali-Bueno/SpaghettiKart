@@ -482,12 +482,14 @@ void DrawAccessibilityMenu() {
                 "an edge-proximity beep, and the game's engine audio panned as a directional reference."));
         UIWidgets::CVarCombobox(
             "Drive Assist: Engine Pan Mode", "gAccessibility.DriveAssistPanMode",
-            std::vector<const char*>{ "Racing line (recommended)", "Curve heading only" },
-            UIWidgets::ComboboxOptions().DefaultIndex(0).Tooltip(
-                "The engine sound leans toward the side you should steer - drive TOWARD the sound to "
-                "follow the racing line. Racing line: aims at a point ahead on the line, so it both "
-                "recenters you and leans into upcoming curves (best for staying on track). Curve heading "
-                "only: leans for upcoming curves but does not correct side-to-side drift."));
+            std::vector<const char*>{ "Curve direction", "Racing line" },
+            UIWidgets::ComboboxOptions().DefaultIndex(1).Tooltip(
+                "How the engine audio leans - steer TOWARD the sound.\n"
+                "Curve direction: leans the way the upcoming curve bends. Predictable, but does not "
+                "correct side-to-side drift.\n"
+                "Racing line: aims at a point ahead on the line, so it both recenters you and "
+                "anticipates curves (best for staying on track).\n"
+                "Use 'Invert Sides' if it feels backwards for how you like to steer."));
         UIWidgets::CVarSliderInt(
             "Drive Assist: Pan Strength", "gAccessibility.DriveAssistPanStrength",
             UIWidgets::IntSliderOptions().Min(0).Max(100).Step(5).DefaultValue(60).Format("%d%%").Tooltip(
@@ -495,20 +497,26 @@ void DrawAccessibilityMenu() {
                 "higher gives a stronger directional signal. Adjust live while driving to find your comfort."));
         UIWidgets::CVarSliderInt(
             "Drive Assist: Anticipation", "gAccessibility.DriveAssistLookAhead",
-            UIWidgets::IntSliderOptions().Min(1).Max(20).Step(1).DefaultValue(5).Format("%d").Tooltip(
+            UIWidgets::IntSliderOptions().Min(1).Max(20).Step(1).DefaultValue(7).Format("%d").Tooltip(
                 "How far ahead the steering guide looks, in track points. Lower reacts to drift sooner and "
                 "centers more tightly; higher is smoother and leans into curves earlier. If the sound feels "
                 "twitchy, raise it; if you drift off before it reacts, lower it."));
         UIWidgets::CVarCheckbox(
             "Drive Assist: Invert Sides", "gAccessibility.DriveAssistInvert",
             UIWidgets::CheckboxOptions().DefaultValue(false).Tooltip(
-                "Invert the pan side. By default you steer TOWARD the sound; enable this if you would "
-                "rather steer AWAY from it (the sound then marks where you are, not where to go)."));
+                "Flip the pan side for whichever mode is selected (swap which way the engine leans). "
+                "Use it if a mode feels backwards for how you like to steer."));
         UIWidgets::CVarCheckbox(
             "Edge Proximity Cue", "gAccessibility.EdgeCue",
             UIWidgets::CheckboxOptions().DefaultValue(true).Tooltip(
-                "Play a short beep, panned to the side, when you drift close to a track edge - a "
-                "warning before you go off-road."));
+                "Beeps panned toward a track edge as you drift toward it - faster and higher the "
+                "closer you get, a steady tone right at the limit. Silent while you are centered."));
+        UIWidgets::CVarSliderInt(
+            "Drive Assist: Edge Sensitivity", "gAccessibility.EdgeSensitivity",
+            UIWidgets::IntSliderOptions().Min(0).Max(100).Step(5).DefaultValue(50).Format("%d%%").Tooltip(
+                "How early the edge cue starts. Lower keeps it silent until you are very close to the "
+                "edge; higher starts it sooner (from further in). It is always silent while you are "
+                "comfortably centered - raise this if you want earlier warnings."));
         ImGui::EndMenu();
     }
 }
