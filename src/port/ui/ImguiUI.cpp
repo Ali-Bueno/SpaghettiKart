@@ -467,6 +467,14 @@ void DrawAccessibilityMenu() {
             "Narrate Menus", "gAccessibility.MenuNarration",
             UIWidgets::CheckboxOptions().DefaultValue(true).Tooltip(
                 "Announce menu screens and the highlighted option as you navigate."));
+        UIWidgets::CVarCheckbox(
+            "Narrate Races", "gAccessibility.RaceNarration",
+            UIWidgets::CheckboxOptions().DefaultValue(true).Tooltip(
+                "Announce position, lap, item obtained and the start signal during races."));
+        UIWidgets::CVarCheckbox(
+            "Off-road Cue", "gAccessibility.OffRoadCue",
+            UIWidgets::CheckboxOptions().DefaultValue(true).Tooltip(
+                "Announce when leaving and returning to the road during races."));
         ImGui::EndMenu();
     }
 }

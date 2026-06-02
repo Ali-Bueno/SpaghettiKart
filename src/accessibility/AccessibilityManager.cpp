@@ -42,16 +42,22 @@ void AccessibilityManager::Tick() {
         return;
     }
 
-    // Front-end contexts: narrate menu navigation.
-    // Active gameplay (RACING) and the post-race sequences are handled by later
-    // phases (race telemetry, drive assist); reset the narrator so the next menu
-    // entry is announced fresh.
-    if (gGamestate != RACING && gGamestate != ENDING && gGamestate != CREDITS_SEQUENCE) {
+    if (gGamestate == RACING) {
+        // Active race: narrate live race state.
+        mMenuNarrator.Reset();
+        if (CVarGetInteger(CVAR_ACCESS_RACE_NARRATION, CVAR_ACCESS_RACE_NARRATION_DEFAULT) != 0) {
+            mRaceNarrator.Tick(reader);
+        }
+    } else if (gGamestate != ENDING && gGamestate != CREDITS_SEQUENCE) {
+        // Front-end contexts: narrate menu navigation.
+        mRaceNarrator.Reset();
         if (CVarGetInteger(CVAR_ACCESS_MENU_NARRATION, CVAR_ACCESS_MENU_NARRATION_DEFAULT) != 0) {
             mMenuNarrator.Tick(reader);
         }
     } else {
+        // Post-race sequences (ENDING / CREDITS): nothing yet.
         mMenuNarrator.Reset();
+        mRaceNarrator.Reset();
     }
 }
 

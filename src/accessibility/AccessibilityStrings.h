@@ -45,4 +45,22 @@ inline constexpr const char* TRACKS[20] = {
 // Sound modes, indexed by gSoundMode (SOUND_STEREO=0 .. SOUND_MONO=3).
 inline constexpr const char* SOUND_MODES[4] = { "Stereo", "Headphones", "Surround", "Mono" };
 
+// Items, indexed by item id (see enum ITEMS in defines.h, 0..15).
+inline constexpr const char* ITEM_NAMES[16] = {
+    "",                  // ITEM_NONE
+    "Banana",            "Banana bunch",      "Green shell",  "Triple green shell",
+    "Red shell",         "Triple red shell",  "Blue shell",   "Lightning",
+    "Fake item box",     "Star",              "Boo",          "Mushroom",
+    "Double mushroom",   "Triple mushroom",   "Super mushroom"
+};
+
+// Race finishing positions, indexed by rank (0-based: index 0 = 1st).
+inline constexpr const char* POSITIONS[8] = { "1st", "2nd", "3rd", "4th",
+                                              "5th", "6th", "7th", "8th" };
+
+// Race events.
+inline constexpr const char* RACE_GO = "Go!";
+inline constexpr const char* RACE_OFF_ROAD = "Off road";
+inline constexpr const char* RACE_ON_ROAD = "On road";
+
 } // namespace AccessibilityStrings

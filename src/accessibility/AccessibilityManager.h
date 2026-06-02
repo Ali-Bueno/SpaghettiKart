@@ -3,6 +3,7 @@
 #ifdef __cplusplus
 
 #include "MenuNarrator.h"
+#include "RaceNarrator.h"
 
 /**
  * Top-level orchestrator for accessibility features.
@@ -27,6 +28,7 @@ class AccessibilityManager {
 
     bool mScreenReaderInitTried = false;
     MenuNarrator mMenuNarrator;
+    RaceNarrator mRaceNarrator;
 };
 
 extern "C" {
