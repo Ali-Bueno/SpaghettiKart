@@ -79,6 +79,7 @@ public:
 
     void SetPitch(HMAS_ChannelId channel, float pitch);
     void SetVolume(HMAS_ChannelId channel, float volume);
+    void SetPan(HMAS_ChannelId channel, float pan); // -1 = left, 0 = center, +1 = right
     void SetPause(HMAS_ChannelId channel, bool pause);
     void AddEffect(HMAS_ChannelId channel, HMAS_EffectType type, HMAS_EffectTransition transition, uint32_t frames, float target);
 

@@ -63,4 +63,10 @@ inline constexpr const char* RACE_GO = "Go!";
 inline constexpr const char* RACE_OFF_ROAD = "Off road";
 inline constexpr const char* RACE_ON_ROAD = "On road";
 
+// Drive assist curve announcements.
+inline constexpr const char* TURN_LEFT = "Left";
+inline constexpr const char* TURN_RIGHT = "Right";
+inline constexpr const char* TURN_HARD_LEFT = "Hard left";
+inline constexpr const char* TURN_HARD_RIGHT = "Hard right";
+
 } // namespace AccessibilityStrings

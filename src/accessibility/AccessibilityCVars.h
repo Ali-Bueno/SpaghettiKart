@@ -8,6 +8,8 @@
 #define CVAR_ACCESS_MENU_NARRATION "gAccessibility.MenuNarration"
 #define CVAR_ACCESS_RACE_NARRATION "gAccessibility.RaceNarration"
 #define CVAR_ACCESS_OFFROAD_CUE "gAccessibility.OffRoadCue"
+#define CVAR_ACCESS_DRIVE_ASSIST "gAccessibility.DriveAssist"
+#define CVAR_ACCESS_DRIVE_INVERT "gAccessibility.DriveAssistInvert"
 
 // Default values used both by the logic (CVarGetInteger fallbacks) and the UI
 // checkboxes, so the menu state and behaviour always agree.
@@ -16,3 +18,5 @@
 #define CVAR_ACCESS_MENU_NARRATION_DEFAULT 1
 #define CVAR_ACCESS_RACE_NARRATION_DEFAULT 1
 #define CVAR_ACCESS_OFFROAD_CUE_DEFAULT 1
+#define CVAR_ACCESS_DRIVE_ASSIST_DEFAULT 1
+#define CVAR_ACCESS_DRIVE_INVERT_DEFAULT 0

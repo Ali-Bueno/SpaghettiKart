@@ -32,6 +32,7 @@ void AccessibilityManager::EnsureScreenReaderInitialized() {
 
 void AccessibilityManager::Tick() {
     if (!Enabled()) {
+        mDriveAssist.Reset(); // recenter game audio if disabled mid-race
         return;
     }
 
@@ -39,18 +40,25 @@ void AccessibilityManager::Tick() {
 
     ScreenReaderService& reader = ScreenReaderService::Instance();
     if (!reader.IsAvailable()) {
+        mDriveAssist.Reset();
         return;
     }
 
     if (gGamestate == RACING) {
-        // Active race: narrate live race state.
+        // Active race: narrate live race state and drive the blind drive assist.
         mMenuNarrator.Reset();
         if (CVarGetInteger(CVAR_ACCESS_RACE_NARRATION, CVAR_ACCESS_RACE_NARRATION_DEFAULT) != 0) {
             mRaceNarrator.Tick(reader);
         }
+        if (CVarGetInteger(CVAR_ACCESS_DRIVE_ASSIST, CVAR_ACCESS_DRIVE_ASSIST_DEFAULT) != 0) {
+            mDriveAssist.Tick(reader);
+        } else {
+            mDriveAssist.Reset();
+        }
     } else if (gGamestate != ENDING && gGamestate != CREDITS_SEQUENCE) {
         // Front-end contexts: narrate menu navigation.
         mRaceNarrator.Reset();
+        mDriveAssist.Reset();
         if (CVarGetInteger(CVAR_ACCESS_MENU_NARRATION, CVAR_ACCESS_MENU_NARRATION_DEFAULT) != 0) {
             mMenuNarrator.Tick(reader);
         }
@@ -58,6 +66,7 @@ void AccessibilityManager::Tick() {
         // Post-race sequences (ENDING / CREDITS): nothing yet.
         mMenuNarrator.Reset();
         mRaceNarrator.Reset();
+        mDriveAssist.Reset();
     }
 }
 

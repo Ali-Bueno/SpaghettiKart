@@ -143,6 +143,16 @@ void HMAS::SetVolume(HMAS_ChannelId channelId, float volume) {
     channel->volume = volume;
 }
 
+void HMAS::SetPan(HMAS_ChannelId channelId, float pan) {
+    auto channel = &this->gChannelSound[channelId];
+
+    if (channel->sound == nullptr) {
+        return;
+    }
+
+    ma_sound_set_pan(channel->sound, pan);
+}
+
 void HMAS::SetPause(HMAS_ChannelId channelId, bool pause) {
     auto channel = &this->gChannelSound[channelId];
 

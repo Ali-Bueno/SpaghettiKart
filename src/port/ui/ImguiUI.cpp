@@ -475,6 +475,16 @@ void DrawAccessibilityMenu() {
             "Off-road Cue", "gAccessibility.OffRoadCue",
             UIWidgets::CheckboxOptions().DefaultValue(true).Tooltip(
                 "Announce when leaving and returning to the road during races."));
+        UIWidgets::CVarCheckbox(
+            "Blind Drive Assist", "gAccessibility.DriveAssist",
+            UIWidgets::CheckboxOptions().DefaultValue(true).Tooltip(
+                "Forza-style guidance: spoken curve warnings, approach/progress beeps, and the "
+                "game's engine audio panned toward the side to steer (centered = aligned)."));
+        UIWidgets::CVarCheckbox(
+            "Drive Assist: Invert Sides", "gAccessibility.DriveAssistInvert",
+            UIWidgets::CheckboxOptions().DefaultValue(false).Tooltip(
+                "Invert the engine pan: sound moves opposite the error, so you steer to bring it "
+                "back to center. Some players prefer this error-correction style."));
         ImGui::EndMenu();
     }
 }

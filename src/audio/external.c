@@ -82,6 +82,16 @@ struct Unk_800E9F7C D_800E9F7C[] = {
     { { 0.0f, 0.0f, 0.0f }, 1.0f, 1.0f, 0, 3800.0f, 3.4f, 0.4f, -1.0f, 0.4f, 1100.0f, 630.0f, 3600.0f, 1.0f },
     { { 0.0f, 0.0f, 0.0f }, 1.0f, 1.0f, 0, 3800.0f, 3.4f, 0.4f, -1.0f, 0.4f, 1100.0f, 630.0f, 3600.0f, 1.0f }
 };
+
+// Accessibility blind drive assist: laterally offset player one's kart audio
+// source (engine + own kart sounds) so it pans left/right as a directional
+// reference. pan: -1 (left) .. +1 (right), 0 = centered. The source position is
+// listener-relative and otherwise stays at the origin, so this only affects the
+// player's own kart audio - not music or other karts.
+void Accessibility_SetKartAudioPan(f32 pan) {
+    D_800E9F7C[0].pos[0] = pan * 110.0f;
+}
+
 struct Unk_800EA06C D_800EA06C[NUM_PLAYERS] = { { { 0.0f, 1.0f, 1.0f }, 0 }, { { 0.0f, 1.0f, 1.0f }, 0 },
                                      { { 0.0f, 1.0f, 1.0f }, 0 }, { { 0.0f, 1.0f, 1.0f }, 0 },
                                      { { 0.0f, 1.0f, 1.0f }, 0 }, { { 0.0f, 1.0f, 1.0f }, 0 },

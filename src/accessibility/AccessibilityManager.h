@@ -4,6 +4,7 @@
 
 #include "MenuNarrator.h"
 #include "RaceNarrator.h"
+#include "DriveAssist.h"
 
 /**
  * Top-level orchestrator for accessibility features.
@@ -29,6 +30,7 @@ class AccessibilityManager {
     bool mScreenReaderInitTried = false;
     MenuNarrator mMenuNarrator;
     RaceNarrator mRaceNarrator;
+    DriveAssist mDriveAssist;
 };
 
 extern "C" {
