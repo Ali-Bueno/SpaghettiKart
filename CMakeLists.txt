@@ -736,6 +736,23 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/meta/" "$<TARGET_FILE_DIR:Spaghettify>/meta/"
 )
 
+# Keep the asset archives next to the executable so an in-tree build is runnable
+# without manual copying. spaghetti.o2r (port assets) is required to boot;
+# mk64.o2r is only copied when it has already been generated from a ROM. Both are
+# guarded with EXISTS so a fresh clone (no mk64.o2r yet) still builds - the game's
+# first-launch extractor generates mk64.o2r in that case. Re-run CMake configure
+# after generating an archive so the copy is picked up.
+if(EXISTS "${CMAKE_SOURCE_DIR}/spaghetti.o2r")
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMENT "Copying spaghetti.o2r next to the executable..."
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/spaghetti.o2r" "$<TARGET_FILE_DIR:Spaghettify>/spaghetti.o2r")
+endif()
+if(EXISTS "${CMAKE_SOURCE_DIR}/mk64.o2r")
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMENT "Copying mk64.o2r next to the executable..."
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/mk64.o2r" "$<TARGET_FILE_DIR:Spaghettify>/mk64.o2r")
+endif()
+
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
   include(ExternalProject)
   ExternalProject_Add(TorchExternal
