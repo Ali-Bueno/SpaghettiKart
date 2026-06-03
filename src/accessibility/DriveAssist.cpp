@@ -8,6 +8,7 @@
 #include <libultraship.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 
@@ -18,6 +19,13 @@ extern "C" {
 // edge (magnitude > 1 once off the track). Defined in code_80005FD0.c, where the
 // game uses it to keep the AI on the racing line.
 f32 calculate_track_position_factor(f32 posX, f32 posZ, u16 waypointIndex, s32 pathIndex);
+// Signed track curvature the game itself uses to classify each section (see
+// analyze_track_section in code_80005FD0.c): POSITIVE = right curve, NEGATIVE = left
+// curve, ~0 = straight. NOTE the sign is OPPOSITE to the gPathExpectedRotation/NetTurn
+// heading convention (where a right turn is negative). Summed over a curve it gives a
+// robust turn direction that, unlike a single windowed NetTurn, can't be flipped by an
+// S-curve inflection landing on the detection point. Defined in code_80005FD0.c.
+f32 calculate_track_curvature(s32 pathIndex, u16 waypointIndex);
 }
 
 extern "C" {
@@ -71,6 +79,15 @@ constexpr int kHardTurn = 5000;    // net turn over kProbe that counts as a hard
 constexpr int kScan = 18;          // points ahead to search for the next curve
 constexpr int kAnnounceDist = 12;  // announce when the entry is within this many points
 
+// The spoken curve direction is taken from the game's own signed curvature
+// (calculate_track_curvature) SUMMED across the curve, not from the single NetTurn at
+// the detection point. Summing can't be flipped by an S-curve inflection sitting on the
+// entry, which is what could mislabel left/right before. If the sum is inconclusive (a
+// near-symmetric S, magnitude below the epsilon) we fall back to the NetTurn sign so the
+// behavior is never worse than before. Curvature convention: POSITIVE = right.
+constexpr int kCurveDirSpan = 4;          // points of curvature to sum for the dominant direction
+constexpr float kCurveDirEpsilon = 0.05f; // |sum| below this is ambiguous -> fall back to NetTurn sign
+
 // Sign convention. In this game's heading units (atan2s + the
 // -get_angle_between_two_vectors convention used for every heading) a RIGHT turn
 // comes out as a NEGATIVE signed angle. This one constant ties together the spoken
@@ -96,13 +113,23 @@ int16_t NetTurn(const int16_t* rot, int count, int p, int w) {
     return static_cast<int16_t>(b - a);
 }
 
-const char* TurnLabel(int16_t turn) {
-    const bool right = TurnIsRight(turn);
-    const bool hard = std::abs(static_cast<int>(turn)) >= kHardTurn;
+const char* TurnLabel(bool right, bool hard) {
     if (hard) {
         return right ? TURN_HARD_RIGHT : TURN_HARD_LEFT;
     }
     return right ? TURN_RIGHT : TURN_LEFT;
+}
+
+// Sum the game's signed curvature over the curve beginning at entryIdx (positive =
+// right). Spanning several points means a single inflection can't flip the dominant
+// direction. Returns the signed sum so the caller can also judge how decisive it is.
+double CurveDirectionSum(int pathIndex, int count, int entryIdx) {
+    double sum = 0.0;
+    for (int j = 0; j < kCurveDirSpan; ++j) {
+        const int idx = ((entryIdx + j) % count + count) % count;
+        sum += calculate_track_curvature(pathIndex, static_cast<u16>(idx));
+    }
+    return sum;
 }
 
 } // namespace
@@ -213,7 +240,16 @@ void DriveAssist::Tick(ScreenReaderService& reader) {
         if (!mCurveAnnounced && entryDist <= kAnnounceDist) {
             mCurveAnnounced = true;
             mApproachBeeps = 0;
-            reader.Speak(TurnLabel(entryTurn), true);
+            // Direction from the game's own curvature, summed over the curve so an S-curve
+            // inflection on the entry can't flip it; severity (hard vs normal) still from
+            // the net heading-change magnitude. Fall back to the NetTurn sign only when the
+            // curvature is inconclusive.
+            const double curveSum = CurveDirectionSum(pathIndex, count, nearest + entryDist);
+            const bool right = (std::abs(curveSum) > kCurveDirEpsilon)
+                                   ? (curveSum > 0.0)        // game convention: positive = right
+                                   : TurnIsRight(entryTurn); // ambiguous: keep the old NetTurn sign
+            const bool hard = std::abs(static_cast<int>(entryTurn)) >= kHardTurn;
+            reader.Speak(TurnLabel(right, hard), true);
         }
         static const int kThresholds[3] = { 10, 6, 3 };
         static const float kPitches[3] = { 1.0f, 1.25f, 1.55f };

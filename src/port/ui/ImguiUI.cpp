@@ -497,7 +497,7 @@ void DrawAccessibilityMenu() {
                 "higher gives a stronger directional signal. Adjust live while driving to find your comfort."));
         UIWidgets::CVarSliderInt(
             "Drive Assist: Anticipation", "gAccessibility.DriveAssistLookAhead",
-            UIWidgets::IntSliderOptions().Min(1).Max(20).Step(1).DefaultValue(7).Format("%d").Tooltip(
+            UIWidgets::IntSliderOptions().Min(1).Max(20).Step(1).DefaultValue(9).Format("%d").Tooltip(
                 "How far ahead the steering guide looks, in track points. Lower reacts to drift sooner and "
                 "centers more tightly; higher is smoother and leans into curves earlier. If the sound feels "
                 "twitchy, raise it; if you drift off before it reacts, lower it."));
