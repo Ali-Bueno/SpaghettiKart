@@ -116,7 +116,7 @@ bool AudioCueService::EnsureInitialized() {
     if (mApproachWav.empty()) {
         // Distinct waveform per cue family so each is unmistakable by ear.
         BuildBeepWav(mApproachWav, 700.0f, 2600, Wave::Sine);        // curve approach: smooth sine
-        BuildBeepWav(mCurveWav, 480.0f, 3000, Wave::Square);         // curve entry/exit: hollow square
+        BuildBeepWav(mCurveWav, 480.0f, 3000, Wave::Triangle);       // curve entry/apex/exit: soft triangle
         BuildBeepWav(mEdgeWav, 900.0f, 850, Wave::Saw);              // edge proximity: harsh saw (short, stays crisp when rapid)
         BuildBeepWav(mEdgeToneWav, 1000.0f, 3200, Wave::Saw, false); // held edge tone: saw, seamless loop
     }

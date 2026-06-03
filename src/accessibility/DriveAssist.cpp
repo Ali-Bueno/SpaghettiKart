@@ -80,13 +80,21 @@ constexpr int kScan = 18;          // points ahead to search for the next curve
 constexpr int kAnnounceDist = 12;  // announce when the entry is within this many points
 
 // The spoken curve direction is taken from the game's own signed curvature
-// (calculate_track_curvature) SUMMED across the curve, not from the single NetTurn at
-// the detection point. Summing can't be flipped by an S-curve inflection sitting on the
-// entry, which is what could mislabel left/right before. If the sum is inconclusive (a
-// near-symmetric S, magnitude below the epsilon) we fall back to the NetTurn sign so the
-// behavior is never worse than before. Curvature convention: POSITIVE = right.
+// (calculate_track_curvature) SUMMED across the curve, not from the single NetTurn at the
+// detection point (whose sign proved unreliable at inflections). If the sum is inconclusive
+// (a near-symmetric S, below the epsilon) we fall back to the NetTurn sign. Convention:
+// POSITIVE curvature = right.
 constexpr int kCurveDirSpan = 4;          // points of curvature to sum for the dominant direction
 constexpr float kCurveDirEpsilon = 0.05f; // |sum| below this is ambiguous -> fall back to NetTurn sign
+
+// Layer 3 in-curve beeps: entry and apex share a pitch, the exit is higher to mark the
+// end of the curve (Forza traversal-cue convention). They are fired off fixed path-point
+// landmarks located once when the curve begins (see MapCurve), so each sounds once.
+constexpr float kCurveEntryPitch = 1.0f;
+constexpr float kCurveApexPitch = 1.0f;
+constexpr float kCurveExitPitch = 1.5f;
+constexpr int kCurveMapScan = 64; // max points scanned to map a curve's apex/end (once per curve)
+constexpr int kCurveClear = 3;    // path points past the exit (with the turn relaxed) before a new curve can arm
 
 // Sign convention. In this game's heading units (atan2s + the
 // -get_angle_between_two_vectors convention used for every heading) a RIGHT turn
@@ -120,9 +128,8 @@ const char* TurnLabel(bool right, bool hard) {
     return right ? TURN_RIGHT : TURN_LEFT;
 }
 
-// Sum the game's signed curvature over the curve beginning at entryIdx (positive =
-// right). Spanning several points means a single inflection can't flip the dominant
-// direction. Returns the signed sum so the caller can also judge how decisive it is.
+// Sum the game's signed curvature over the curve beginning at entryIdx (positive = right).
+// Spanning several points means a single inflection can't flip the dominant direction.
 double CurveDirectionSum(int pathIndex, int count, int entryIdx) {
     double sum = 0.0;
     for (int j = 0; j < kCurveDirSpan; ++j) {
@@ -132,14 +139,67 @@ double CurveDirectionSum(int pathIndex, int count, int entryIdx) {
     return sum;
 }
 
+struct CurveSpan {
+    int apexOffset; // points ahead from the entry to the strongest part of the curve
+    int endOffset;  // points ahead from the entry to where the curve relaxes or reverses
+};
+
+// Walk forward from `start` over a single curve (same turn direction, magnitude above the
+// exit threshold) to locate its apex (strongest turn) and its end. Called once when a
+// curve begins so the entry/apex/exit beeps can be driven off fixed path-point landmarks
+// as the player advances - instead of re-testing the turn at the jittery nearest point
+// every frame, which made the cue repeat when crawling or braking through a corner.
+CurveSpan MapCurve(const int16_t* rot, int count, int start) {
+    const int16_t turn0 = NetTurn(rot, count, start, kProbe);
+    const int sign = (turn0 < 0) ? -1 : 1;
+    const int limit = std::min(count - 1, kCurveMapScan);
+    int apexOffset = 0;
+    int endOffset = limit;
+    int bestMag = std::abs(static_cast<int>(turn0));
+    for (int i = 1; i <= limit; ++i) {
+        const int16_t t = NetTurn(rot, count, start + i, kProbe);
+        const int mag = std::abs(static_cast<int>(t));
+        const int s = (t < 0) ? -1 : 1;
+        if (mag < kCurveOff || s != sign) {
+            endOffset = i; // curve relaxed below the exit threshold or reversed direction
+            break;
+        }
+        if (mag > bestMag) {
+            bestMag = mag;
+            apexOffset = i;
+        }
+    }
+    // Keep the apex strictly inside (entry, exit) so the three beeps stay distinct.
+    if (apexOffset < 1 || apexOffset >= endOffset) {
+        apexOffset = endOffset / 2;
+    }
+    return { apexOffset, endOffset };
+}
+
+// Signed forward distance from `from` to `to` along the looping path, in (-count/2,
+// count/2]. Positive = `to` is still ahead; <= 0 = we've reached or passed it. Comparing
+// the CURRENT nearest point against fixed landmark indices this way (rather than summing
+// per-frame deltas) means the nearest point jittering back and forth near the track edge
+// cannot accumulate phantom progress and retrigger the curve beeps.
+int FwdDist(int from, int to, int count) {
+    int d = ((to - from) % count + count) % count;
+    if (d > count / 2) {
+        d -= count;
+    }
+    return d;
+}
+
 } // namespace
 
 void DriveAssist::Reset() {
     Accessibility_SetKartAudioPan(0.0f);                        // recenter the kart engine audio
     AudioCueService::Instance().SetEdgeTone(false, 0.0f, 0.0f); // silence any held edge tone
     mCurveAnnounced = false;
+    mAnnouncedDir = 0;
     mApproachBeeps = 0;
-    mWasInCurve = false;
+    mCurvePhase = 0;
+    mApexPoint = 0;
+    mExitPoint = 0;
     mEdgeBeepTimer = 0;
     mSmoothedPan = 0.0f;
 }
@@ -225,6 +285,10 @@ void DriveAssist::Tick(ScreenReaderService& reader) {
     }
 
     // --- Layers 1 & 2: find the upcoming curve, announce it, approach beeps ---
+    // The windowed NetTurn looks ahead and trips a bit BEFORE the curve, which gives the
+    // spoken call useful anticipation. (A gTrackSectionTypes-based detector was tried but it
+    // only flags the sharp part - so it announced late, while reading the wrong way on a
+    // succession - which felt worse.) Gentle curves below the threshold stay unannounced.
     int entryDist = -1;
     int16_t entryTurn = 0;
     for (int i = 1; i <= kScan; ++i) {
@@ -237,19 +301,26 @@ void DriveAssist::Tick(ScreenReaderService& reader) {
     }
 
     if (entryDist != -1) {
-        if (!mCurveAnnounced && entryDist <= kAnnounceDist) {
-            mCurveAnnounced = true;
-            mApproachBeeps = 0;
+        if (entryDist <= kAnnounceDist) {
             // Direction from the game's own curvature, summed over the curve so an S-curve
-            // inflection on the entry can't flip it; severity (hard vs normal) still from
-            // the net heading-change magnitude. Fall back to the NetTurn sign only when the
-            // curvature is inconclusive.
+            // inflection on the entry can't flip it; severity (hard vs normal) from the net
+            // heading-change magnitude. Fall back to the NetTurn sign only when inconclusive.
             const double curveSum = CurveDirectionSum(pathIndex, count, nearest + entryDist);
             const bool right = (std::abs(curveSum) > kCurveDirEpsilon)
                                    ? (curveSum > 0.0)        // game convention: positive = right
-                                   : TurnIsRight(entryTurn); // ambiguous: keep the old NetTurn sign
-            const bool hard = std::abs(static_cast<int>(entryTurn)) >= kHardTurn;
-            reader.Speak(TurnLabel(right, hard), true);
+                                   : TurnIsRight(entryTurn); // ambiguous: keep the NetTurn sign
+            const int dir = right ? 1 : -1;
+            // Announce a curve once, and again whenever the upcoming curve switches direction,
+            // so an alternating chicane is called - not just the first bend. A run of same-
+            // direction curves is announced once (re-announced only after a clear gap with no
+            // curve ahead, handled in the else branch below).
+            if (!mCurveAnnounced || dir != mAnnouncedDir) {
+                const bool hard = std::abs(static_cast<int>(entryTurn)) >= kHardTurn;
+                reader.Speak(TurnLabel(right, hard), true);
+                mCurveAnnounced = true;
+                mAnnouncedDir = dir;
+                mApproachBeeps = 0;
+            }
         }
         static const int kThresholds[3] = { 10, 6, 3 };
         static const float kPitches[3] = { 1.0f, 1.25f, 1.55f };
@@ -263,18 +334,52 @@ void DriveAssist::Tick(ScreenReaderService& reader) {
         mApproachBeeps = 0;
     }
 
-    // --- Layer 3: curve-progress beeps (entry / exit), from the local turn ---
-    // Hysteresis (enter at kCurveOn, only leave below kCurveOff) so a turn value
-    // hovering around the threshold doesn't flip in/out every frame and spam beeps.
-    const int16_t localTurn = NetTurn(rotPath, count, nearest, kProbe);
-    const int localMag = std::abs(static_cast<int>(localTurn));
-    const bool inCurve = mWasInCurve ? (localMag >= kCurveOff) : (localMag >= kCurveOn);
-    if (inCurve && !mWasInCurve) {
-        AudioCueService::Instance().PlayBeep(CueBeep::Curve, 1.0f); // entry
-    } else if (!inCurve && mWasInCurve) {
-        AudioCueService::Instance().PlayBeep(CueBeep::Curve, 1.5f); // exit (higher pitch)
+    // --- Layer 3: in-curve progress beeps (entry / apex / exit), once each ---
+    // When a curve begins we map it once (MapCurve) and fix its apex and end as ABSOLUTE
+    // path points; the three beeps fire as the nearest point reaches those landmarks. After
+    // the exit we stay quiet until the kart is clearly past the curve AND the turn has
+    // relaxed, before a new curve can arm. Because everything keys off fixed landmarks and
+    // the relaxed-turn gate (never off accumulated motion), the nearest point jittering
+    // while you make small steering corrections near the edge cannot retrigger the cue.
+    // S-curves split naturally: the turn relaxes or reverses between bends, so each gets
+    // its own set.
+    {
+        const int16_t localTurn = NetTurn(rotPath, count, nearest, kProbe);
+        const int localMag = std::abs(static_cast<int>(localTurn));
+
+        switch (mCurvePhase) {
+            case 0: // armed: waiting for the next curve to begin
+                if (localMag >= kCurveOn) {
+                    const CurveSpan span = MapCurve(rotPath, count, nearest);
+                    mApexPoint = (nearest + span.apexOffset) % count;
+                    mExitPoint = (nearest + span.endOffset) % count;
+                    mCurvePhase = 1;
+                    AudioCueService::Instance().PlayBeep(CueBeep::Curve, kCurveEntryPitch); // entry
+                }
+                break;
+            case 1: // entered: waiting to reach the apex
+                if (FwdDist(nearest, mApexPoint, count) <= 0) {
+                    AudioCueService::Instance().PlayBeep(CueBeep::Curve, kCurveApexPitch); // apex (same pitch)
+                    mCurvePhase = 2;
+                }
+                if (FwdDist(nearest, mExitPoint, count) <= 0) { // very short curve: don't miss the exit
+                    AudioCueService::Instance().PlayBeep(CueBeep::Curve, kCurveExitPitch); // exit (higher pitch)
+                    mCurvePhase = 3;
+                }
+                break;
+            case 2: // past the apex: waiting to reach the exit
+                if (FwdDist(nearest, mExitPoint, count) <= 0) {
+                    AudioCueService::Instance().PlayBeep(CueBeep::Curve, kCurveExitPitch); // exit (higher pitch)
+                    mCurvePhase = 3;
+                }
+                break;
+            case 3: // exited: stay quiet until clearly past the curve and the turn has relaxed
+                if (localMag < kCurveOff && FwdDist(nearest, mExitPoint, count) <= -kCurveClear) {
+                    mCurvePhase = 0; // re-armed for the next curve
+                }
+                break;
+        }
     }
-    mWasInCurve = inCurve;
 
     // --- Layer 5: edge-proximity cue (silent when centered, scales toward the edge) ---
     if (CVarGetInteger(CVAR_ACCESS_EDGE_CUE, CVAR_ACCESS_EDGE_CUE_DEFAULT) != 0) {

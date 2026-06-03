@@ -13,7 +13,9 @@ class ScreenReaderService;
  *     announced once per curve when it comes into range.
  *  2. Approach beeps: up to three rising-pitch centered beeps as the curve
  *     entry gets nearer.
- *  3. Curve-progress beeps: a distinct timbre at curve entry and exit.
+ *  3. Curve-progress beeps: three soft beeps per curve - entry, apex (same pitch)
+ *     and a higher-pitched exit - each fired exactly once as you advance through
+ *     the curve. Back-to-back curves each get their own set.
  *  4. Steering Guide: the player's engine audio is panned toward the side to steer,
  *     so the player drives TOWARD the sound (Accessibility_SetKartAudioPan). Two
  *     selectable models (CVAR_..._PAN_MODE):
@@ -36,8 +38,13 @@ class DriveAssist {
 
   private:
     bool mCurveAnnounced = false; // a curve ahead has been announced (episode)
+    int mAnnouncedDir = 0;        // direction of the last announced curve (+1 right, -1 left); re-announce on change
     int mApproachBeeps = 0;       // approach beeps played for the current curve
-    bool mWasInCurve = false;     // for entry/exit progress beeps (hysteretic)
+    // In-curve progress beeps (Layer 3). Keyed off ABSOLUTE path-point landmarks (not
+    // accumulated per-frame motion) so nearest-point jitter near the edge can't retrigger.
+    int mCurvePhase = 0; // 0 armed/waiting, 1 entered (awaiting apex), 2 past apex (awaiting exit), 3 cooldown
+    int mApexPoint = 0;  // path point where the apex beep fires (strongest part of the curve)
+    int mExitPoint = 0;  // path point where the exit beep fires (the curve's end)
     int mEdgeBeepTimer = 0;       // ticks until the next edge beep (rate scales with closeness)
     float mSmoothedPan = 0.0f;    // low-pass filtered engine pan (avoids abrupt jumps)
 };
