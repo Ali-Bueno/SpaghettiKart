@@ -32,10 +32,11 @@ enum {
     SUB_MAP_COURSE = 0x02,
     SUB_MAP_OK = 0x03,
     SUB_MAP_BATTLE_COURSE = 0x04,
-    SUB_OPT_RETURN = 0x15,
+    SUB_OPT_ACCESSIBILITY = 0x15,
     SUB_OPT_SOUND = 0x16,
     SUB_OPT_COPY_PAK = 0x17,
     SUB_OPT_ERASE_ALL = 0x18,
+    SUB_OPT_RETURN = 0x19,
 };
 
 // Grid position (1-8) to character id. sCharacterGridOrder is static in
@@ -165,22 +166,21 @@ std::string MenuNarrator::BuildItemAnnouncement(int screen) const {
             return "";
         }
         case OPTIONS_MENU: {
+            // Native Options rows. The accessible settings categories (Accessibility,
+            // Sound) park gSubMenuSelection at SUB_MENU_MOD_SETTINGS while open, which
+            // has no case here, so MenuNarrator stays silent and the settings module is
+            // the sole narrator inside a category.
             switch (gSubMenuSelection) {
-                case SUB_OPT_RETURN:
-                    return "Return to game select";
-                case SUB_OPT_SOUND: {
-                    std::string result = "Sound mode";
-                    const int mode = gSoundMode;
-                    if (mode >= 0 && mode < 4) {
-                        result += ": ";
-                        result += SOUND_MODES[mode];
-                    }
-                    return result;
-                }
+                case SUB_OPT_ACCESSIBILITY:
+                    return "Accessibility";
+                case SUB_OPT_SOUND:
+                    return "Sound";
                 case SUB_OPT_COPY_PAK:
                     return "Copy Controller Pak";
                 case SUB_OPT_ERASE_ALL:
                     return "Erase all data";
+                case SUB_OPT_RETURN:
+                    return "Return to game select";
                 default:
                     return "";
             }

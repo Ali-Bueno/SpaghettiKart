@@ -7,6 +7,7 @@
 #include <stubs.h>
 
 #include "menus.h"
+#include "accessibility/SettingsMenu.h"
 #include "TrackBrowser.h"
 #include "editor/Editor.h"
 #include "main.h"
@@ -231,6 +232,18 @@ void update_menus(void) {
 }
 
 /**
+ * Apply and persist the N64 sound mode chosen from the accessible settings menu.
+ * Keeps the save-data struct access on the C side (mirrors the native options flow).
+ */
+void apply_sound_mode_setting(s32 mode) {
+    gSoundMode = (u8) mode;
+    set_sound_mode();
+    gSaveData.main.saveInfo.soundMode = gSoundMode;
+    write_save_data_grand_prix_points_and_sound_mode();
+    update_save_data_backup();
+}
+
+/**
  * Navigation of the options menu
  */
 void options_menu_act(struct Controller* controller, u16 controllerIdx) {
@@ -251,10 +264,11 @@ void options_menu_act(struct Controller* controller, u16 controllerIdx) {
         sp38 = find_menu_items_dupe(0xF0);
         sp30 = (struct_8018EE10_entry*) gSomeDLBuffer;
         switch (gSubMenuSelection) {
-            case SUB_MENU_OPTION_RETURN_GAME_SELECT:
-            case SUB_MENU_OPTION_SOUND_MODE:
+            case SUB_MENU_OPTION_ACCESSIBILITY:
+            case SUB_MENU_OPTION_SOUND:
             case SUB_MENU_OPTION_COPY_CONTROLLER_PAK:
-            case SUB_MENU_OPTION_ERASE_ALL_DATA: {
+            case SUB_MENU_OPTION_ERASE_ALL_DATA:
+            case SUB_MENU_OPTION_RETURN_GAME_SELECT: {
                 tempVar = false;
                 if ((btnAndStick & D_JPAD) && (gSubMenuSelection < SUB_MENU_OPTION_MAX)) {
                     gSubMenuSelection += 1;
@@ -293,28 +307,16 @@ void options_menu_act(struct Controller* controller, u16 controllerIdx) {
                 }
                 if (btnAndStick & A_BUTTON) {
                     switch (gSubMenuSelection) {
-                        case SUB_MENU_OPTION_SOUND_MODE:
-                            if (gSoundMode < 3) {
-                                gSoundMode += 1;
-                            } else {
-                                gSoundMode = SOUND_STEREO;
-                            }
-                            set_sound_mode();
-                            switch (gSoundMode) {
-                                case SOUND_STEREO:
-                                    play_sound2(SOUND_MENU_STEREO);
-                                    return;
-                                case SOUND_HEADPHONES:
-                                    play_sound2(SOUND_MENU_HEADPHONES);
-                                    return;
-                                case SOUND_SURROUND:
-                                    play_sound2(SOUND_MENU_SURROUND);
-                                    return;
-                                case SOUND_MONO:
-                                    play_sound2(SOUND_MENU_MONO);
-                                    return;
-                            }
-                            break;
+                        case SUB_MENU_OPTION_ACCESSIBILITY:
+                            SettingsMenu_Open(0);
+                            gSubMenuSelection = SUB_MENU_MOD_SETTINGS;
+                            play_sound2(SOUND_MENU_SELECT);
+                            return;
+                        case SUB_MENU_OPTION_SOUND:
+                            SettingsMenu_Open(1);
+                            gSubMenuSelection = SUB_MENU_MOD_SETTINGS;
+                            play_sound2(SOUND_MENU_SELECT);
+                            return;
                         case SUB_MENU_OPTION_COPY_CONTROLLER_PAK:
                             switch (controller_pak_2_status()) {
                                 case PFS_INVALID_DATA:
@@ -392,6 +394,20 @@ void options_menu_act(struct Controller* controller, u16 controllerIdx) {
                 }
                 // maybe else return?;
                 break;
+            }
+            case SUB_MENU_MOD_SETTINGS: {
+                s32 r = SettingsMenu_HandleInput(btnAndStick);
+                if (r & 0x2) {
+                    play_sound2(SOUND_MENU_CURSOR_MOVE);
+                }
+                if (r & 0x8) {
+                    play_sound2(SOUND_MENU_GO_BACK);
+                }
+                if (r & 0x1) {
+                    gSubMenuSelection = (SettingsMenu_OpenCategoryId() == 0) ? SUB_MENU_OPTION_ACCESSIBILITY
+                                                                            : SUB_MENU_OPTION_SOUND;
+                }
+                return;
             }
             case SUB_MENU_ERASE_QUIT:
             case SUB_MENU_ERASE_ERASE: {
@@ -1889,7 +1905,7 @@ void load_menu_states(s32 menuSelection) {
 
     switch (menuSelection) {
         case OPTIONS_MENU:
-            gSubMenuSelection = SUB_MENU_OPTION_RETURN_GAME_SELECT;
+            gSubMenuSelection = SUB_MENU_OPTION_MIN; // start on the first row (Accessibility)
             break;
         case DATA_MENU:
             gSubMenuSelection = SUB_MENU_DATA;

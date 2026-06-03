@@ -10,6 +10,7 @@
 #include <assets/textures/texture_data_2.h>
 #include "code_800029B0.h"
 #include "menu_items.h"
+#include "accessibility/SettingsMenu.h"
 #include "code_80005FD0.h"
 #include "code_8006E9C0.h"
 #include "menus.h"
@@ -466,10 +467,11 @@ char* D_800E7860[] = {
 };
 
 char* gTextOptionMenu[] = {
-    "RETURN TO GAME SELECT",
-    "SOUND MODE",
+    "ACCESSIBILITY",
+    "SOUND",
     "COPY N64 CONTROLLER PAK",
     "ERASE ALL DATA",
+    "RETURN TO GAME SELECT",
 };
 
 char* D_800E7878[] = {
@@ -7391,10 +7393,11 @@ void func_800A1FB0(MenuItem* arg0) {
 
     gDisplayListHead = draw_box_wide(gDisplayListHead, 0, 0, 0x00000140, 0x000000F0, 0, 0, 0, 0x00000064);
     switch (gSubMenuSelection) {
-        case SUB_MENU_OPTION_RETURN_GAME_SELECT:
-        case SUB_MENU_OPTION_SOUND_MODE:
+        case SUB_MENU_OPTION_ACCESSIBILITY:
+        case SUB_MENU_OPTION_SOUND:
         case SUB_MENU_OPTION_COPY_CONTROLLER_PAK:
         case SUB_MENU_OPTION_ERASE_ALL_DATA:
+        case SUB_MENU_OPTION_RETURN_GAME_SELECT:
             for (i = 0; i < ARRAY_COUNT(gTextOptionMenu); i++) {
                 set_text_color_rainbow_if_selected(gSubMenuSelection - SUB_MENU_OPTION_MIN, i, 3);
                 print_text_mode_1(0x00000032, 0x55 + (0x23 * i), gTextOptionMenu[i], 0, 0.9f, 1.0f);
@@ -7403,9 +7406,21 @@ void func_800A1FB0(MenuItem* arg0) {
                     spE0.row = 0x55 + (0x23 * i);
                 }
             }
-            set_text_color(TEXT_GREEN);
-            print_text1_center_mode_1(0x000000E6, 0x00000078, gSoundModeNames[gSoundMode], 0, 1.0f, 1.0f);
             break;
+        case SUB_MENU_MOD_SETTINGS: {
+            // Accessible settings hub: rows come from the accessibility module.
+            s32 rows = SettingsMenu_RowCount();
+            s32 r;
+            char buf[64];
+            set_text_color(TEXT_YELLOW);
+            print_text1_center_mode_1(0x000000A0, 0x00000040, (char*) SettingsMenu_Title(), 0, 0.9f, 1.0f);
+            for (r = 0; r < rows; r++) {
+                set_text_color(SettingsMenu_IsRowSelected(r) ? TEXT_GREEN : TEXT_YELLOW);
+                SettingsMenu_RowText(r, buf, sizeof(buf));
+                print_text_mode_1(0x00000032, 0x55 + (0x10 * r), buf, 0, 0.7f, 0.8f);
+            }
+            break;
+        }
         case SUB_MENU_ERASE_QUIT:
         case SUB_MENU_ERASE_ERASE:
             set_text_color(TEXT_YELLOW);
@@ -7617,7 +7632,10 @@ void func_800A1FB0(MenuItem* arg0) {
             spE0.row -= 8;
             break;
     }
-    pause_menu_item_box_cursor(arg0, (Unk_D_800E70A0*) &spE0);
+    // Our settings hub conveys selection via colour + narration, not the 3D box.
+    if (gSubMenuSelection != SUB_MENU_MOD_SETTINGS) {
+        pause_menu_item_box_cursor(arg0, (Unk_D_800E70A0*) &spE0);
+    }
 }
 #else
 GLOBAL_ASM("asm/non_matchings/menu_items/func_800A1FB0.s")

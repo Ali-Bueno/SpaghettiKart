@@ -40,11 +40,13 @@ enum SubMenuSelectionType {
     SUB_MENU_DATA_ERASE_CONFIRM,
     SUB_MENU_DATA_CANT_ERASE,
     SUB_MENU_OPTION_MIN = 0x15,
-    SUB_MENU_OPTION_RETURN_GAME_SELECT = SUB_MENU_OPTION_MIN,
-    SUB_MENU_OPTION_SOUND_MODE,
-    SUB_MENU_OPTION_COPY_CONTROLLER_PAK,
-    SUB_MENU_OPTION_ERASE_ALL_DATA,
-    SUB_MENU_OPTION_MAX = SUB_MENU_OPTION_ERASE_ALL_DATA, // 0x18
+    SUB_MENU_OPTION_ACCESSIBILITY = SUB_MENU_OPTION_MIN, // 0x15 accessible settings menu
+    SUB_MENU_OPTION_SOUND,                               // 0x16 sound settings menu
+    SUB_MENU_OPTION_COPY_CONTROLLER_PAK,                 // 0x17 (unchanged native flow)
+    SUB_MENU_OPTION_ERASE_ALL_DATA,                      // 0x18 (unchanged native flow)
+    SUB_MENU_OPTION_RETURN_GAME_SELECT,                  // 0x19 moved to the last row
+    SUB_MENU_OPTION_MAX = SUB_MENU_OPTION_RETURN_GAME_SELECT, // 0x19
+    SUB_MENU_MOD_SETTINGS = 0x1A,                        // sentinel: inside a settings category
     SUB_MENU_ERASE_MIN = 0x1E,
     SUB_MENU_ERASE_QUIT = SUB_MENU_ERASE_MIN,
     SUB_MENU_ERASE_ERASE,
