@@ -3,6 +3,7 @@
 #ifdef __cplusplus
 
 #include "MenuNarrator.h"
+#include "PauseNarrator.h"
 #include "RaceNarrator.h"
 #include "DriveAssist.h"
 
@@ -29,6 +30,7 @@ class AccessibilityManager {
 
     bool mScreenReaderInitTried = false;
     MenuNarrator mMenuNarrator;
+    PauseNarrator mPauseNarrator;
     RaceNarrator mRaceNarrator;
     DriveAssist mDriveAssist;
 };

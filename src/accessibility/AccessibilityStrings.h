@@ -58,6 +58,15 @@ inline constexpr const char* ITEM_NAMES[16] = {
 inline constexpr const char* POSITIONS[8] = { "1st", "2nd", "3rd", "4th",
                                               "5th", "6th", "7th", "8th" };
 
+// Pause menu.
+inline constexpr const char* PAUSE_MENU = "Paused";
+// Pause options, indexed by TEXT_MENU_ID (see menu_items.h: CONTINUE_GAME=0 ..
+// SAVE_GHOST=6). Nicely cased instead of the game's ALL-CAPS so screen readers
+// don't spell them out.
+inline constexpr const char* PAUSE_OPTIONS[7] = {
+    "Continue", "Retry", "Course change", "Driver change", "Quit", "Replay", "Save ghost"
+};
+
 // Race events.
 inline constexpr const char* RACE_GO = "Go!";
 inline constexpr const char* RACE_OFF_ROAD = "Off road";

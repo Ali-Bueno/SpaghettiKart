@@ -45,18 +45,29 @@ void AccessibilityManager::Tick() {
     }
 
     if (gGamestate == RACING) {
-        // Active race: narrate live race state and drive the blind drive assist.
         mMenuNarrator.Reset();
-        if (CVarGetInteger(CVAR_ACCESS_RACE_NARRATION, CVAR_ACCESS_RACE_NARRATION_DEFAULT) != 0) {
-            mRaceNarrator.Tick(reader);
-        }
-        if (CVarGetInteger(CVAR_ACCESS_DRIVE_ASSIST, CVAR_ACCESS_DRIVE_ASSIST_DEFAULT) != 0) {
-            mDriveAssist.Tick(reader);
-        } else {
+        if (gIsGamePaused != 0) {
+            // Paused mid-race: silence the driving cues and narrate the pause menu.
+            mRaceNarrator.Reset();
             mDriveAssist.Reset();
+            if (CVarGetInteger(CVAR_ACCESS_MENU_NARRATION, CVAR_ACCESS_MENU_NARRATION_DEFAULT) != 0) {
+                mPauseNarrator.Tick(reader);
+            }
+        } else {
+            // Active race: narrate live race state and drive the blind drive assist.
+            mPauseNarrator.Reset();
+            if (CVarGetInteger(CVAR_ACCESS_RACE_NARRATION, CVAR_ACCESS_RACE_NARRATION_DEFAULT) != 0) {
+                mRaceNarrator.Tick(reader);
+            }
+            if (CVarGetInteger(CVAR_ACCESS_DRIVE_ASSIST, CVAR_ACCESS_DRIVE_ASSIST_DEFAULT) != 0) {
+                mDriveAssist.Tick(reader);
+            } else {
+                mDriveAssist.Reset();
+            }
         }
     } else if (gGamestate != ENDING && gGamestate != CREDITS_SEQUENCE) {
         // Front-end contexts: narrate menu navigation.
+        mPauseNarrator.Reset();
         mRaceNarrator.Reset();
         mDriveAssist.Reset();
         if (CVarGetInteger(CVAR_ACCESS_MENU_NARRATION, CVAR_ACCESS_MENU_NARRATION_DEFAULT) != 0) {
@@ -65,6 +76,7 @@ void AccessibilityManager::Tick() {
     } else {
         // Post-race sequences (ENDING / CREDITS): nothing yet.
         mMenuNarrator.Reset();
+        mPauseNarrator.Reset();
         mRaceNarrator.Reset();
         mDriveAssist.Reset();
     }

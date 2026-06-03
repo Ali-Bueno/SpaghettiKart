@@ -15,6 +15,8 @@
 extern "C" {
 // High-level game state. Compare against RACING / ENDING / CREDITS_SEQUENCE.
 extern int32_t gGamestate;
+// Non-zero while the in-race pause menu is open (value = pausing player + 1).
+extern uint16_t gIsGamePaused;
 // Currently displayed front-end menu screen.
 // Compare against MAIN_MENU / CHARACTER_SELECT_MENU / COURSE_SELECT_MENU, etc.
 extern int32_t gMenuSelection;
