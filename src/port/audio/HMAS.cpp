@@ -5,6 +5,7 @@
 #include <spdlog/spdlog.h>
 #include "port/Engine.h"
 #include "sounds.h"
+#include <libultraship/bridge/consolevariablebridge.h> // CVarGetFloat
 
 HMAS::HMAS() {
     ma_result result;
@@ -81,7 +82,6 @@ void HMAS::Play(HMAS_ChannelId channelId, HMAS_AudioId id, bool loop) {
     float pitch = 1.0f;
     float volume = channelId == HMAS_ChannelId::HMAS_MUSIC ? 0.9f : 1.0f;
     ma_sound_set_pitch(&sample.sound, pitch);
-    ma_sound_set_volume(&sample.sound, volume);
     ma_sound_set_looping(&sample.sound, loop);
     ma_sound_seek_to_pcm_frame(&sample.sound, 0);
     ma_result result = ma_sound_start(&sample.sound);
@@ -94,7 +94,9 @@ void HMAS::Play(HMAS_ChannelId channelId, HMAS_AudioId id, bool loop) {
     channel->sound = &sample.sound;
     channel->cursor = 0;
     channel->pitch = pitch;
-    channel->volume = volume;
+    // Route the initial volume through SetVolume so the music channel is scaled by
+    // the user's music volume from the very first frame the track plays.
+    this->SetVolume(channelId, volume);
 }
 
 void HMAS::Stop(HMAS_ChannelId channelId) {
@@ -139,8 +141,20 @@ void HMAS::SetVolume(HMAS_ChannelId channelId, float volume) {
         return;
     }
 
-    ma_sound_set_volume(channel->sound, volume);
+    // Keep the requested (base) volume for the game's fade/effect maths, but scale
+    // the music channel's actual output by the user's music volume so the menu /
+    // PortMenu setting is respected (HMAS streams ignore the sequence-player volume).
     channel->volume = volume;
+    float applied = volume;
+    if (channelId == HMAS_MUSIC) {
+        applied *= CVarGetFloat("gMainMusicVolume", 1.0f);
+    }
+    ma_sound_set_volume(channel->sound, applied);
+}
+
+void HMAS::RefreshMusicVolume() {
+    // Re-apply the music channel volume so a changed gMainMusicVolume takes effect now.
+    this->SetVolume(HMAS_MUSIC, this->gChannelSound[HMAS_MUSIC].volume);
 }
 
 void HMAS::SetPan(HMAS_ChannelId channelId, float pan) {
@@ -263,6 +277,10 @@ extern "C" void HMAS_SetPitch(HMAS_ChannelId channelId, float pitch) {
 
 extern "C" void HMAS_SetVolume(HMAS_ChannelId channelId, float volume) {
     GameEngine::Instance->gHMAS->SetVolume(channelId, volume);
+}
+
+extern "C" void HMAS_RefreshMusicVolume(void) {
+    GameEngine::Instance->gHMAS->RefreshMusicVolume();
 }
 
 extern "C" void HMAS_SetPause(HMAS_ChannelId channelId, bool pause) {

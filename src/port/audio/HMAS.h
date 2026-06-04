@@ -79,6 +79,7 @@ public:
 
     void SetPitch(HMAS_ChannelId channel, float pitch);
     void SetVolume(HMAS_ChannelId channel, float volume);
+    void RefreshMusicVolume(); // re-apply the music channel volume from gMainMusicVolume
     void SetPan(HMAS_ChannelId channel, float pan); // -1 = left, 0 = center, +1 = right
     void SetPause(HMAS_ChannelId channel, bool pause);
     void AddEffect(HMAS_ChannelId channel, HMAS_EffectType type, HMAS_EffectTransition transition, uint32_t frames, float target);
@@ -106,6 +107,7 @@ void HMAS_Stop(enum HMAS_ChannelId channel);
 bool HMAS_IsPlaying(enum HMAS_ChannelId channel);
 void HMAS_SetPitch(enum HMAS_ChannelId channel, float pitch);
 void HMAS_SetVolume(enum HMAS_ChannelId channel, float volume);
+void HMAS_RefreshMusicVolume(void);
 void HMAS_SetPause(enum HMAS_ChannelId channel, bool pause);
 void HMAS_AddEffect(enum HMAS_ChannelId channel, enum HMAS_EffectType type, enum HMAS_EffectTransition transition, uint32_t frames, float target);
 bool HMAS_IsIDRegistered(HMAS_AudioId id);

@@ -166,9 +166,12 @@ uintptr_t D_801625F8;
 f32 D_801625FC;
 
 void update_music_volume(s32 target){
-    float volume = (float) target / 127.0f;
-    CVarSetFloat("gMainMusicVolume", volume);
-    audio_set_player_volume(SEQ_PLAYER_LEVEL, volume);
+    // target is the in-race L-button music level (0..127). Scale it by the user's
+    // saved music volume instead of overwriting that setting, so the menu/PortMenu
+    // music volume is respected and persists across races and menus.
+    float level = (float) target / 127.0f;
+    float userVolume = CVarGetFloat("gMainMusicVolume", 1.0f);
+    audio_set_player_volume(SEQ_PLAYER_LEVEL, level * userVolume);
 }
 
 void func_800029B0(void) {
