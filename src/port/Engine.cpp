@@ -8,6 +8,10 @@
 #include <thread>
 #include <atomic>
 #include <chrono>
+#include <mutex>
+#include <algorithm>
+#include <string_view>
+#include <spdlog/sinks/base_sink.h>
 #include "ui/ImguiUI.h"
 #include "ship/Context.h"
 #include "ship/controller/controldevice/controller/mapping/ControllerDefaultMappings.h"
@@ -270,6 +274,25 @@ GameEngine::GameEngine() {
     ImGui::GetIO().FontDefault = fontMono;
 }
 
+namespace {
+// Counts torch's per-asset "Processing" log lines during ROM extraction, so the screen
+// reader can announce a live count of processed items instead of just elapsed time.
+class AssetProgressSink : public spdlog::sinks::base_sink<std::mutex> {
+  public:
+    std::atomic<int> count{ 0 };
+
+  protected:
+    void sink_it_(const spdlog::details::log_msg& msg) override {
+        const std::string_view payload(msg.payload.data(), msg.payload.size());
+        if (payload.find("] Processing ") != std::string_view::npos) {
+            count.fetch_add(1, std::memory_order_relaxed);
+        }
+    }
+    void flush_() override {
+    }
+};
+} // namespace
+
 bool GameEngine::GenAssetFile() {
     auto extractor = new GameExtractor();
 
@@ -286,14 +309,18 @@ bool GameEngine::GenAssetFile() {
     }
 
     ShowMessage(("Found " + game.value()).c_str(),
-                "The extraction process will now begin and may take a few minutes.\n\nThe game will announce the "
-                "elapsed time while it works, and a message will confirm when it is done.",
+                "The extraction process will now begin and may take a few minutes.\n\nThe game will announce its "
+                "progress while it works, and a message will confirm when it is done.",
                 SDL_MESSAGEBOX_INFORMATION);
 
     // Run the extraction on a worker thread so a (possibly blind) player gets audible
-    // progress: the UI is otherwise frozen for minutes with no feedback. The screen
-    // reader announces the elapsed time every few seconds; with no screen reader these
-    // calls are silent no-ops, so sighted users are unaffected.
+    // progress: the UI is otherwise frozen for minutes with no feedback. A log sink
+    // counts torch's per-asset "Processing" lines so the screen reader can announce a
+    // live count of processed items (falling back to elapsed time before the first
+    // item). With no screen reader these announcements are silent no-ops.
+    auto progressSink = std::make_shared<AssetProgressSink>();
+    spdlog::default_logger()->sinks().push_back(progressSink);
+
     std::atomic<bool> finished{ false };
     std::atomic<bool> success{ false };
     std::thread worker([extractor, &finished, &success]() {
@@ -307,11 +334,20 @@ bool GameEngine::GenAssetFile() {
     ScreenReaderService& reader = ScreenReaderService::Instance();
     for (int elapsed = 0; !finished; ++elapsed) {
         if (reader.IsAvailable() && (elapsed % 5 == 0)) {
-            reader.Speak("Extracting game assets, please wait. " + std::to_string(elapsed) + " seconds elapsed.", true);
+            const int items = progressSink->count.load(std::memory_order_relaxed);
+            if (items > 0) {
+                reader.Speak("Extracting game assets. " + std::to_string(items) + " items processed.", true);
+            } else {
+                reader.Speak("Extracting game assets, please wait. " + std::to_string(elapsed) + " seconds elapsed.",
+                             true);
+            }
         }
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
     worker.join();
+
+    auto& sinks = spdlog::default_logger()->sinks();
+    sinks.erase(std::remove(sinks.begin(), sinks.end(), progressSink), sinks.end());
     return success;
 }
 
