@@ -57,6 +57,8 @@ void GenerateAssetsMods() {
             GameEngine::ShowMessage("Error", "An error occured, no O2R file was generated.\n\nExiting...");
             exit(1);
         }
+        GameEngine::ShowMessage("Done", "Asset extraction complete.\n\nThe game will now start.",
+                                SDL_MESSAGEBOX_INFORMATION);
     } else {
         exit(1);
     }

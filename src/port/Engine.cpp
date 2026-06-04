@@ -3,6 +3,11 @@
 #include "ship/utils/StringHelper.h"
 #include "GameExtractor.h"
 #include "mods/ModManager.h"
+#include "accessibility/ScreenReaderService.h"
+#include "accessibility/AccessibilityCVars.h"
+#include <thread>
+#include <atomic>
+#include <chrono>
 #include "ui/ImguiUI.h"
 #include "ship/Context.h"
 #include "ship/controller/controldevice/controller/mapping/ControllerDefaultMappings.h"
@@ -281,9 +286,33 @@ bool GameEngine::GenAssetFile() {
     }
 
     ShowMessage(("Found " + game.value()).c_str(),
-                "The extraction process will now begin.\n\nThis may take a few minutes.", SDL_MESSAGEBOX_INFORMATION);
+                "The extraction process will now begin and may take a few minutes.\n\nThe game will announce the "
+                "elapsed time while it works, and a message will confirm when it is done.",
+                SDL_MESSAGEBOX_INFORMATION);
 
-    return extractor->GenerateOTR();
+    // Run the extraction on a worker thread so a (possibly blind) player gets audible
+    // progress: the UI is otherwise frozen for minutes with no feedback. The screen
+    // reader announces the elapsed time every few seconds; with no screen reader these
+    // calls are silent no-ops, so sighted users are unaffected.
+    std::atomic<bool> finished{ false };
+    std::atomic<bool> success{ false };
+    std::thread worker([extractor, &finished, &success]() {
+        success = extractor->GenerateOTR();
+        finished = true;
+    });
+
+    if (CVarGetInteger(CVAR_ACCESS_SCREEN_READER, CVAR_ACCESS_SCREEN_READER_DEFAULT) != 0) {
+        ScreenReaderService::Instance().Initialize();
+    }
+    ScreenReaderService& reader = ScreenReaderService::Instance();
+    for (int elapsed = 0; !finished; ++elapsed) {
+        if (reader.IsAvailable() && (elapsed % 5 == 0)) {
+            reader.Speak("Extracting game assets, please wait. " + std::to_string(elapsed) + " seconds elapsed.", true);
+        }
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+    worker.join();
+    return success;
 }
 
 uint32_t GameEngine::GetInterpolationFPS() {
