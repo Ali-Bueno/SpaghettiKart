@@ -266,6 +266,10 @@ void options_menu_act(struct Controller* controller, u16 controllerIdx) {
         switch (gSubMenuSelection) {
             case SUB_MENU_OPTION_ACCESSIBILITY:
             case SUB_MENU_OPTION_SOUND:
+            case SUB_MENU_OPTION_GRAPHICS:
+            case SUB_MENU_OPTION_ENHANCEMENTS:
+            case SUB_MENU_OPTION_CHEATS:
+            case SUB_MENU_OPTION_RULESETS:
             case SUB_MENU_OPTION_COPY_CONTROLLER_PAK:
             case SUB_MENU_OPTION_ERASE_ALL_DATA:
             case SUB_MENU_OPTION_RETURN_GAME_SELECT: {
@@ -308,12 +312,13 @@ void options_menu_act(struct Controller* controller, u16 controllerIdx) {
                 if (btnAndStick & A_BUTTON) {
                     switch (gSubMenuSelection) {
                         case SUB_MENU_OPTION_ACCESSIBILITY:
-                            SettingsMenu_Open(0);
-                            gSubMenuSelection = SUB_MENU_MOD_SETTINGS;
-                            play_sound2(SOUND_MENU_SELECT);
-                            return;
                         case SUB_MENU_OPTION_SOUND:
-                            SettingsMenu_Open(1);
+                        case SUB_MENU_OPTION_GRAPHICS:
+                        case SUB_MENU_OPTION_ENHANCEMENTS:
+                        case SUB_MENU_OPTION_CHEATS:
+                        case SUB_MENU_OPTION_RULESETS:
+                            // Open the matching settings category (id = row - MIN).
+                            SettingsMenu_Open(gSubMenuSelection - SUB_MENU_OPTION_MIN);
                             gSubMenuSelection = SUB_MENU_MOD_SETTINGS;
                             play_sound2(SOUND_MENU_SELECT);
                             return;
@@ -404,8 +409,8 @@ void options_menu_act(struct Controller* controller, u16 controllerIdx) {
                     play_sound2(SOUND_MENU_GO_BACK);
                 }
                 if (r & 0x1) {
-                    gSubMenuSelection = (SettingsMenu_OpenCategoryId() == 0) ? SUB_MENU_OPTION_ACCESSIBILITY
-                                                                            : SUB_MENU_OPTION_SOUND;
+                    // Land the cursor back on the category's own row (id = row - MIN).
+                    gSubMenuSelection = SUB_MENU_OPTION_MIN + SettingsMenu_OpenCategoryId();
                 }
                 return;
             }

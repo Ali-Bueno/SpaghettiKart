@@ -10,7 +10,7 @@ extern "C" {
 #include <defines.h> // GRAND_PRIX, TIME_TRIALS, VERSUS, BATTLE
 }
 
-// Pause-menu game state. Declared locally (like RaceNarrator's externs) to keep
+// In-race menu game state. Declared locally (like RaceNarrator's externs) to keep
 // the C++ side free of the heavy C-only menu headers; linkage is by symbol name.
 extern "C" {
 // Non-zero while the in-race pause menu is open (value = pausing player + 1).
@@ -34,8 +34,14 @@ using namespace AccessibilityStrings;
 
 namespace {
 
-// MenuItem type id of the pause menu (MENU_ITEM_PAUSE in menu_items.h).
-constexpr int32_t kMenuItemPause = 0xC7;
+// MenuItem type ids (menu_items.h).
+constexpr int32_t kMenuItemPause = 0xC7;       // MENU_ITEM_PAUSE
+constexpr int32_t kMenuItemEndCourse = 0xBD;   // MENU_ITEM_END_COURSE_OPTION
+
+// The end-course menu's cursor lives in MenuItem.state over this inclusive range
+// (6 options); below it the item is in its intro/animation phase.
+constexpr int kEndCourseMin = 0x0B;
+constexpr int kEndCourseMax = 0x10;
 
 // gTextPauseButton indices (TEXT_MENU_ID in menu_items.h), used to index
 // PAUSE_OPTIONS[].
@@ -50,15 +56,11 @@ enum {
 } // namespace
 
 void PauseNarrator::Reset() {
-    mWasPaused = false;
+    mLastKind = 0;
     mLastAnnouncement.clear();
 }
 
-std::string PauseNarrator::CurrentOption() const {
-    if (gIsGamePaused == 0) {
-        return "";
-    }
-
+std::string PauseNarrator::PauseOption() const {
     const AccessMenuItem* item = find_menu_items(kMenuItemPause);
     if (item == nullptr) {
         return "";
@@ -112,15 +114,56 @@ std::string PauseNarrator::CurrentOption() const {
     return PAUSE_OPTIONS[optionId];
 }
 
+std::string PauseNarrator::EndCourseOption() const {
+    const AccessMenuItem* item = find_menu_items(kMenuItemEndCourse);
+    if (item == nullptr || item->state < kEndCourseMin || item->state > kEndCourseMax) {
+        return "";
+    }
+    // render_menu_item_end_course_option draws gTextPauseButton[idx + 1] for
+    // idx = state - 0x0B, i.e. Retry, Course change, Driver change, Quit, Replay,
+    // Save ghost.
+    const int optionId = (item->state - kEndCourseMin) + 1;
+    if (optionId < 0 || optionId >= 7) {
+        return "";
+    }
+    return PAUSE_OPTIONS[optionId];
+}
+
+bool PauseNarrator::MenuActive() const {
+    if (gIsGamePaused != 0) {
+        return true;
+    }
+    const AccessMenuItem* item = find_menu_items(kMenuItemEndCourse);
+    return item != nullptr && item->state >= kEndCourseMin && item->state <= kEndCourseMax;
+}
+
+std::string PauseNarrator::CurrentOption(int* kind) const {
+    if (gIsGamePaused != 0) {
+        *kind = 1;
+        return PauseOption();
+    }
+    const AccessMenuItem* item = find_menu_items(kMenuItemEndCourse);
+    if (item != nullptr && item->state >= kEndCourseMin && item->state <= kEndCourseMax) {
+        *kind = 2;
+        return EndCourseOption();
+    }
+    *kind = 0;
+    return "";
+}
+
 void PauseNarrator::Tick(ScreenReaderService& reader) {
-    const std::string option = CurrentOption();
+    int kind = 0;
+    const std::string option = CurrentOption(&kind);
 
-    // Just opened the pause menu: announce the screen name plus the current item.
-    if (!mWasPaused) {
-        mWasPaused = true;
+    // Menu just opened or switched: announce the screen name plus the current item.
+    if (kind != mLastKind) {
+        mLastKind = kind;
         mLastAnnouncement = option;
+        if (kind == 0) {
+            return; // menu closed
+        }
 
-        std::string message = PAUSE_MENU;
+        std::string message = (kind == 1) ? PAUSE_MENU : PAUSE_END_MENU;
         if (!option.empty()) {
             message += ". ";
             message += option;
@@ -129,7 +172,7 @@ void PauseNarrator::Tick(ScreenReaderService& reader) {
         return;
     }
 
-    // Still paused, highlighted option changed: announce just the new item.
+    // Same menu, highlighted option changed: announce just the new item.
     if (option != mLastAnnouncement) {
         mLastAnnouncement = option;
         if (!option.empty()) {

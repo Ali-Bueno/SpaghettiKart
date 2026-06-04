@@ -4,6 +4,7 @@
 
 #include "MenuNarrator.h"
 #include "PauseNarrator.h"
+#include "PostRaceNarrator.h"
 #include "RaceNarrator.h"
 #include "DriveAssist.h"
 
@@ -31,6 +32,7 @@ class AccessibilityManager {
     bool mScreenReaderInitTried = false;
     MenuNarrator mMenuNarrator;
     PauseNarrator mPauseNarrator;
+    PostRaceNarrator mPostRaceNarrator;
     RaceNarrator mRaceNarrator;
     DriveAssist mDriveAssist;
 };

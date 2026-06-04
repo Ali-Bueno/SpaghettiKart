@@ -3,6 +3,7 @@
 #include "GameBridge.h"
 #include "ScreenReaderService.h"
 #include "AccessibilityCVars.h"
+#include "SettingsMenu.h"
 
 #include <libultraship.h>
 
@@ -31,6 +32,9 @@ void AccessibilityManager::EnsureScreenReaderInitialized() {
 }
 
 void AccessibilityManager::Tick() {
+    // Advance any running Help cue demo (independent of the narration state).
+    SettingsMenu_TickDemo();
+
     if (!Enabled()) {
         mDriveAssist.Reset(); // recenter game audio if disabled mid-race
         return;
@@ -46,8 +50,10 @@ void AccessibilityManager::Tick() {
 
     if (gGamestate == RACING) {
         mMenuNarrator.Reset();
-        if (gIsGamePaused != 0) {
-            // Paused mid-race: silence the driving cues and narrate the pause menu.
+        mPostRaceNarrator.Reset();
+        if (mPauseNarrator.MenuActive()) {
+            // An in-race overlay menu is up (pause, or the end-course/replay menu):
+            // silence the driving cues and narrate the menu.
             mRaceNarrator.Reset();
             mDriveAssist.Reset();
             if (CVarGetInteger(CVAR_ACCESS_MENU_NARRATION, CVAR_ACCESS_MENU_NARRATION_DEFAULT) != 0) {
@@ -68,17 +74,26 @@ void AccessibilityManager::Tick() {
     } else if (gGamestate != ENDING && gGamestate != CREDITS_SEQUENCE) {
         // Front-end contexts: narrate menu navigation.
         mPauseNarrator.Reset();
+        mPostRaceNarrator.Reset();
         mRaceNarrator.Reset();
-        mDriveAssist.Reset();
+        if (!SettingsMenu_DemoActive()) {
+            mDriveAssist.Reset(); // skip while a cue demo plays so its held edge tone survives
+        }
         if (CVarGetInteger(CVAR_ACCESS_MENU_NARRATION, CVAR_ACCESS_MENU_NARRATION_DEFAULT) != 0) {
             mMenuNarrator.Tick(reader);
         }
     } else {
-        // Post-race sequences (ENDING / CREDITS): nothing yet.
+        // Post-race sequences (ENDING / CREDITS).
         mMenuNarrator.Reset();
         mPauseNarrator.Reset();
         mRaceNarrator.Reset();
         mDriveAssist.Reset();
+        if (gGamestate == ENDING &&
+            CVarGetInteger(CVAR_ACCESS_MENU_NARRATION, CVAR_ACCESS_MENU_NARRATION_DEFAULT) != 0) {
+            mPostRaceNarrator.Tick(reader);
+        } else {
+            mPostRaceNarrator.Reset();
+        }
     }
 }
 

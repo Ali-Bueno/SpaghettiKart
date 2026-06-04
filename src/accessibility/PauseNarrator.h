@@ -5,27 +5,35 @@
 class ScreenReaderService;
 
 /**
- * Narrates the in-race PAUSE menu.
+ * Narrates the in-race overlay menus that appear while gGamestate == RACING:
+ *   - the PAUSE menu (gIsGamePaused != 0), and
+ *   - the end-of-course / replay options menu (MENU_ITEM_END_COURSE_OPTION),
+ *     shown after finishing a Time Trial and when pausing during a replay.
  *
- * The pause menu appears while gGamestate == RACING (gIsGamePaused != 0). It is a
- * separate menu from the front-end screens handled by MenuNarrator, with its own
- * per-game-mode option list, so it gets its own narrator.
- *
- * Like the other narrators it only reads game state and delegates to
- * ScreenReaderService; it holds no game logic and never alters menu behaviour.
+ * Both are separate from the front-end screens handled by MenuNarrator. Like the
+ * other narrators it only reads game state and delegates to ScreenReaderService;
+ * it holds no game logic and never alters menu behaviour.
  */
 class PauseNarrator {
   public:
-    // Forget the last narrated state (call when leaving the pause menu / race).
+    // Forget the last narrated state (call when leaving the race / these menus).
     void Reset();
-    // Inspect the pause-menu state and speak any change. Called once per frame
-    // while the game is paused during a race.
+    // True while one of the in-race overlay menus is up. The manager uses this to
+    // silence the driving cues and route narration here.
+    bool MenuActive() const;
+    // Inspect the active overlay menu and speak any change. Called once per frame
+    // while an in-race menu is up.
     void Tick(ScreenReaderService& reader);
 
   private:
-    // Label of the highlighted pause option for the current mode, or "" if none.
-    std::string CurrentOption() const;
+    // Label of the highlighted pause-menu option, or "" if none.
+    std::string PauseOption() const;
+    // Label of the highlighted end-course / replay option, or "" if none.
+    std::string EndCourseOption() const;
+    // Current option for whichever menu is active; sets *kind (0 none, 1 pause,
+    // 2 end-course).
+    std::string CurrentOption(int* kind) const;
 
-    bool mWasPaused = false;
+    int mLastKind = 0;
     std::string mLastAnnouncement;
 };

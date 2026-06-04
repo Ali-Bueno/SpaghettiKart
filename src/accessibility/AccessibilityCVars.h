@@ -10,8 +10,6 @@
 #define CVAR_ACCESS_OFFROAD_CUE "gAccessibility.OffRoadCue"
 #define CVAR_ACCESS_DRIVE_ASSIST "gAccessibility.DriveAssist"
 #define CVAR_ACCESS_DRIVE_INVERT "gAccessibility.DriveAssistInvert"
-// Engine pan model: 0 = curve direction (heading), 1 = racing line (pure pursuit, default).
-#define CVAR_ACCESS_DRIVE_PAN_MODE "gAccessibility.DriveAssistPanMode"
 // Engine pan strength 0-100%: scales how far the audio leans. Lower = gentler.
 #define CVAR_ACCESS_DRIVE_PAN_STRENGTH "gAccessibility.DriveAssistPanStrength"
 // Steering Guide look-ahead ("anticipation"), in path points: how far ahead to aim.
@@ -33,7 +31,6 @@
 #define CVAR_ACCESS_OFFROAD_CUE_DEFAULT 1
 #define CVAR_ACCESS_DRIVE_ASSIST_DEFAULT 1
 #define CVAR_ACCESS_DRIVE_INVERT_DEFAULT 0
-#define CVAR_ACCESS_DRIVE_PAN_MODE_DEFAULT 1
 #define CVAR_ACCESS_DRIVE_PAN_STRENGTH_DEFAULT 60
 #define CVAR_ACCESS_DRIVE_LOOKAHEAD_DEFAULT 9
 #define CVAR_ACCESS_EDGE_CUE_DEFAULT 1

@@ -480,16 +480,6 @@ void DrawAccessibilityMenu() {
             UIWidgets::CheckboxOptions().DefaultValue(true).Tooltip(
                 "Audio guidance for blind driving: spoken curve warnings, approach/progress beeps, "
                 "an edge-proximity beep, and the game's engine audio panned as a directional reference."));
-        UIWidgets::CVarCombobox(
-            "Drive Assist: Engine Pan Mode", "gAccessibility.DriveAssistPanMode",
-            std::vector<const char*>{ "Curve direction", "Racing line" },
-            UIWidgets::ComboboxOptions().DefaultIndex(1).Tooltip(
-                "How the engine audio leans - steer TOWARD the sound.\n"
-                "Curve direction: leans the way the upcoming curve bends. Predictable, but does not "
-                "correct side-to-side drift.\n"
-                "Racing line: aims at a point ahead on the line, so it both recenters you and "
-                "anticipates curves (best for staying on track).\n"
-                "Use 'Invert Sides' if it feels backwards for how you like to steer."));
         UIWidgets::CVarSliderInt(
             "Drive Assist: Pan Strength", "gAccessibility.DriveAssistPanStrength",
             UIWidgets::IntSliderOptions().Min(0).Max(100).Step(5).DefaultValue(60).Format("%d%%").Tooltip(

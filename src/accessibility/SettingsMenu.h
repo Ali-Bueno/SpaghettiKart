@@ -35,6 +35,11 @@ void SettingsMenu_RowText(int i, char* out, int outSize);
 // the native cursor back on this category's row.
 int SettingsMenu_OpenCategoryId(void);
 
+// Advance any running Help cue demo (call once per frame).
+void SettingsMenu_TickDemo(void);
+// Non-zero while a Help cue demo is playing (so the manager doesn't silence it).
+int SettingsMenu_DemoActive(void);
+
 #ifdef __cplusplus
 }
 #endif

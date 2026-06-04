@@ -44,9 +44,6 @@ using namespace AccessibilityStrings;
 
 namespace {
 
-// Engine pan models (CVAR_ACCESS_DRIVE_PAN_MODE), selectable in the menu.
-constexpr int kPanModeCurve = 0;      // heading error vs the path ahead: lean toward the upcoming curve
-constexpr int kPanModeRacingLine = 1; // pure pursuit to a look-ahead point: also recenters onto the line
 
 // Angle units are s16 binary angles: 0x10000 == 360 degrees (~182 per degree).
 constexpr int kSteerDeadzone = 0x0300; // ~4 deg: within this the engine stays centered
@@ -238,7 +235,6 @@ void DriveAssist::Tick(ScreenReaderService& reader) {
     // The sound leans toward the side you must steer to follow the racing line, so
     // the player drives TOWARD the sound (Forza Steering Guide semantics).
     {
-        const int panMode = CVarGetInteger(CVAR_ACCESS_DRIVE_PAN_MODE, CVAR_ACCESS_DRIVE_PAN_MODE_DEFAULT);
         // User-tunable scale (0..1) so the lean can be softened to taste.
         const float strength = std::clamp(
             CVarGetInteger(CVAR_ACCESS_DRIVE_PAN_STRENGTH, CVAR_ACCESS_DRIVE_PAN_STRENGTH_DEFAULT) / 100.0f,
@@ -248,24 +244,17 @@ void DriveAssist::Tick(ScreenReaderService& reader) {
         // curves earlier.
         const int lookAhead = std::clamp(
             CVarGetInteger(CVAR_ACCESS_DRIVE_LOOKAHEAD, CVAR_ACCESS_DRIVE_LOOKAHEAD_DEFAULT), 1, 30);
-        // A steer error (toward where to go) drives the pan, so you drive TOWARD the
-        // sound. The two models differ only in how that error is found.
+        // Racing line / pure pursuit: aim at a look-ahead point on the line and steer by
+        // (bearing - heading). Mirrors the game's own AI (code_80005FD0.c:1900) - it
+        // recenters onto the line AND anticipates the curve, so the player drives TOWARD
+        // the sound. (The old "curve direction" mode was just this with the sign flipped,
+        // i.e. a duplicate of Invert, so it was removed.)
         const int aheadIdx = (nearest + lookAhead) % count;
-        int16_t error;
-        if (panMode == kPanModeCurve) {
-            // Curve direction: heading error vs the path ahead. Leans into the upcoming
-            // curve but does NOT correct lateral drift.
-            error = static_cast<int16_t>(rotPath[aheadIdx] - player->rotation[1]);
-        } else {
-            // Racing line / pure pursuit: aim at a point ahead on the line and steer
-            // by (bearing - heading). Mirrors the game's own AI (code_80005FD0.c:1900)
-            // - recenters onto the line AND anticipates the curve.
-            const TrackPathPoint* tgt = &gTrackPaths[pathIndex][aheadIdx];
-            f32 self[3] = { player->pos[0], player->pos[1], player->pos[2] };
-            f32 target[3] = { static_cast<f32>(tgt->x), static_cast<f32>(tgt->y), static_cast<f32>(tgt->z) };
-            const int16_t bearing = static_cast<int16_t>(-get_angle_between_two_vectors(self, target));
-            error = static_cast<int16_t>(bearing - player->rotation[1]);
-        }
+        const TrackPathPoint* tgt = &gTrackPaths[pathIndex][aheadIdx];
+        f32 self[3] = { player->pos[0], player->pos[1], player->pos[2] };
+        f32 target[3] = { static_cast<f32>(tgt->x), static_cast<f32>(tgt->y), static_cast<f32>(tgt->z) };
+        const int16_t bearing = static_cast<int16_t>(-get_angle_between_two_vectors(self, target));
+        const int16_t error = static_cast<int16_t>(bearing - player->rotation[1]);
 
         float pan = 0.0f;
         if (std::abs(static_cast<int>(error)) >= kSteerDeadzone) {
