@@ -473,6 +473,7 @@ char* gTextOptionMenu[] = {
     "ENHANCEMENTS",
     "CHEATS",
     "RULESETS",
+    "CONTROLS",
     "COPY N64 CONTROLLER PAK",
     "ERASE ALL DATA",
     "RETURN TO GAME SELECT",
@@ -7403,16 +7404,17 @@ void func_800A1FB0(MenuItem* arg0) {
         case SUB_MENU_OPTION_ENHANCEMENTS:
         case SUB_MENU_OPTION_CHEATS:
         case SUB_MENU_OPTION_RULESETS:
+        case SUB_MENU_OPTION_CONTROLS:
         case SUB_MENU_OPTION_COPY_CONTROLLER_PAK:
         case SUB_MENU_OPTION_ERASE_ALL_DATA:
         case SUB_MENU_OPTION_RETURN_GAME_SELECT:
             // Tighter spacing/scale so all the category rows fit on screen.
             for (i = 0; i < ARRAY_COUNT(gTextOptionMenu); i++) {
                 set_text_color_rainbow_if_selected(gSubMenuSelection - SUB_MENU_OPTION_MIN, i, 3);
-                print_text_mode_1(0x00000032, 0x40 + (0x14 * i), gTextOptionMenu[i], 0, 0.7f, 0.8f);
+                print_text_mode_1(0x00000032, 0x38 + (0x12 * i), gTextOptionMenu[i], 0, 0.65f, 0.7f);
                 if (i == (gSubMenuSelection - SUB_MENU_OPTION_MIN)) {
                     spE0.column = 0x0032;
-                    spE0.row = 0x40 + (0x14 * i);
+                    spE0.row = 0x38 + (0x12 * i);
                 }
             }
             break;

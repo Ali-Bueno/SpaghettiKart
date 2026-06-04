@@ -11,6 +11,11 @@ extern "C" {
 #include <defines.h>
 }
 
+// Re-applies the streamed-music volume from gMainMusicVolume (port/audio/HMAS.cpp).
+extern "C" void HMAS_RefreshMusicVolume(void);
+// Sets the rival-kart audio volume scale (src/audio/external.c).
+extern "C" void Accessibility_SetRivalKartVolume(float volume);
+
 AccessibilityManager& AccessibilityManager::Instance() {
     static AccessibilityManager instance;
     return instance;
@@ -34,6 +39,16 @@ void AccessibilityManager::EnsureScreenReaderInitialized() {
 void AccessibilityManager::Tick() {
     // Advance any running Help cue demo (independent of the narration state).
     SettingsMenu_TickDemo();
+
+    // Keep the streamed (HMAS) music at the user's saved gMainMusicVolume. The
+    // title/menu track can start before the config is loaded, so it would otherwise
+    // play at full volume until the slider is touched. This is idempotent and
+    // re-applies the current base volume (so the game's own ducks/fades still work).
+    HMAS_RefreshMusicVolume();
+
+    // Keep the rival-kart volume scale in sync with the saved setting (applied to
+    // rival kart sounds during races; persists via the CVar, applied live here).
+    Accessibility_SetRivalKartVolume(CVarGetFloat("gAccessibility.RivalKartVolume", 1.0f));
 
     if (!Enabled()) {
         mDriveAssist.Reset(); // recenter game audio if disabled mid-race

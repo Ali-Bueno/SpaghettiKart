@@ -270,6 +270,7 @@ void options_menu_act(struct Controller* controller, u16 controllerIdx) {
             case SUB_MENU_OPTION_ENHANCEMENTS:
             case SUB_MENU_OPTION_CHEATS:
             case SUB_MENU_OPTION_RULESETS:
+            case SUB_MENU_OPTION_CONTROLS:
             case SUB_MENU_OPTION_COPY_CONTROLLER_PAK:
             case SUB_MENU_OPTION_ERASE_ALL_DATA:
             case SUB_MENU_OPTION_RETURN_GAME_SELECT: {
@@ -317,6 +318,7 @@ void options_menu_act(struct Controller* controller, u16 controllerIdx) {
                         case SUB_MENU_OPTION_ENHANCEMENTS:
                         case SUB_MENU_OPTION_CHEATS:
                         case SUB_MENU_OPTION_RULESETS:
+                        case SUB_MENU_OPTION_CONTROLS:
                             // Open the matching settings category (id = row - MIN).
                             SettingsMenu_Open(gSubMenuSelection - SUB_MENU_OPTION_MIN);
                             gSubMenuSelection = SUB_MENU_MOD_SETTINGS;

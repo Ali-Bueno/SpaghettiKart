@@ -38,9 +38,10 @@ enum {
     SUB_OPT_ENHANCEMENTS = 0x18,
     SUB_OPT_CHEATS = 0x19,
     SUB_OPT_RULESETS = 0x1A,
-    SUB_OPT_COPY_PAK = 0x1B,
-    SUB_OPT_ERASE_ALL = 0x1C,
-    SUB_OPT_RETURN = 0x1D,
+    SUB_OPT_CONTROLS = 0x1B,
+    SUB_OPT_COPY_PAK = 0x1C,
+    SUB_OPT_ERASE_ALL = 0x1D,
+    SUB_OPT_RETURN = 0x1E,
 };
 
 // Grid position (1-8) to character id. sCharacterGridOrder is static in
@@ -187,6 +188,8 @@ std::string MenuNarrator::BuildItemAnnouncement(int screen) const {
                     return "Cheats";
                 case SUB_OPT_RULESETS:
                     return "Rulesets";
+                case SUB_OPT_CONTROLS:
+                    return "Controls";
                 case SUB_OPT_COPY_PAK:
                     return "Copy Controller Pak";
                 case SUB_OPT_ERASE_ALL:

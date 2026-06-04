@@ -5,11 +5,15 @@
 #include "AccessibilityCVars.h"
 
 #include <libultraship.h> // CVarGet/Set Integer/Float, CVarSave
+#include <spdlog/spdlog.h> // temporary rebind diagnostics
+#include <SDL2/SDL.h>      // poll raw gamepad state during a control rebind
 
 #include <cmath>
 #include <cstdio>
 #include <cctype>
+#include <memory>
 #include <string>
+#include <vector>
 
 // Game C symbols consumed here. Linkage is by symbol name (same bridge pattern
 // as the rest of the accessibility module), so we avoid the heavy C-only headers.
@@ -38,6 +42,11 @@ constexpr int kCueApproach = 1;
 constexpr int kCueCurve = 2;
 constexpr int kCueEdge = 3;
 
+// Game-input block id used while capturing a control rebind (arbitrary, unique).
+constexpr int kRebindBlockId = 0x52424E44; // 'RBND'
+// Capture polls run up to ~4x/frame; cancel an unanswered rebind after this many.
+constexpr int kRebindTimeoutTicks = 2400;
+
 // Audio sequence players (mirror of SEQ_PLAYER_* in audio/external.h).
 constexpr unsigned char kSeqLevel = 0; // background music
 constexpr unsigned char kSeqEnv = 1;   // environment
@@ -46,7 +55,23 @@ constexpr unsigned char kSeqSfx = 2;   // sound effects
 // How many option rows are visible at once (the rest scroll).
 constexpr int kMaxVisible = 9;
 
-enum class OptKind { Toggle, IntSlider, Enum, FloatSlider, Info };
+enum class OptKind { Toggle, IntSlider, Enum, FloatSlider, Info, Button };
+
+// N64 controller button bitmasks (CONTROLLERBUTTONS_T / BTN_* in libultraship).
+constexpr int kN64BtnA = 0x8000;
+constexpr int kN64BtnB = 0x4000;
+constexpr int kN64BtnZ = 0x2000;
+constexpr int kN64BtnStart = 0x1000;
+constexpr int kN64BtnDUp = 0x0800;
+constexpr int kN64BtnDDown = 0x0400;
+constexpr int kN64BtnDLeft = 0x0200;
+constexpr int kN64BtnDRight = 0x0100;
+constexpr int kN64BtnL = 0x0020;
+constexpr int kN64BtnR = 0x0010;
+constexpr int kN64BtnCUp = 0x0008;
+constexpr int kN64BtnCDown = 0x0004;
+constexpr int kN64BtnCLeft = 0x0002;
+constexpr int kN64BtnCRight = 0x0001;
 
 struct Option {
     const char* label;          // spoken + (uppercased) shown
@@ -64,6 +89,7 @@ struct Option {
     const char* note;           // optional spoken hint (e.g. "Restart required")
     const char* help;           // Info option: explanation spoken when A is pressed
     int cueExample;             // Info option: cue to play with Z (kCue* ), 0 = none
+    int bitmask;                // Button option: the N64 button to view/rebind
 };
 
 struct Category {
@@ -169,6 +195,10 @@ const Option kSound[] = {
     { .label = "Environment volume", .kind = OptKind::FloatSlider, .cvar = "gEnvironmentVolume",
       .fdefault = 1.0f, .fmin = 0.0f, .fmax = 1.0f, .fstep = 0.05f, .asPercent = true,
       .onChange = ApplyEnvVolume },
+    // Lower the rival karts so a blind player can pick out their own. Applied each
+    // frame by AccessibilityManager from this CVar (no onChange needed).
+    { .label = "Rival kart volume", .kind = OptKind::FloatSlider, .cvar = "gAccessibility.RivalKartVolume",
+      .fdefault = 1.0f, .fmin = 0.0f, .fmax = 1.0f, .fstep = 0.05f, .asPercent = true },
     { .label = "Sound mode", .kind = OptKind::Enum, .cvar = nullptr, .idefault = 0,
       .labels = kSoundModeLabels, .labelCount = 4, .getInt = GetSoundMode, .setInt = SetSoundMode },
 };
@@ -232,6 +262,28 @@ const Option kRulesets[] = {
     { .label = "Cars", .kind = OptKind::IntSlider, .cvar = "gNumCars", .idefault = 7, .fmin = 0, .fmax = 50, .fstep = 1 },
 };
 
+// --- Controls category (rebindable N64 buttons; A = rebind, Z = clear) -----------
+
+const Option kControls[] = {
+    { .label = "How to rebind", .kind = OptKind::Info,
+      .help = "Move to a button to hear what it is bound to. Press A, then press the key or controller "
+              "button you want for it. Press Z on a button to clear its binding." },
+    { .label = "A button", .kind = OptKind::Button, .bitmask = kN64BtnA },
+    { .label = "B button", .kind = OptKind::Button, .bitmask = kN64BtnB },
+    { .label = "Z button", .kind = OptKind::Button, .bitmask = kN64BtnZ },
+    { .label = "Start", .kind = OptKind::Button, .bitmask = kN64BtnStart },
+    { .label = "L button", .kind = OptKind::Button, .bitmask = kN64BtnL },
+    { .label = "R button", .kind = OptKind::Button, .bitmask = kN64BtnR },
+    { .label = "C up", .kind = OptKind::Button, .bitmask = kN64BtnCUp },
+    { .label = "C down", .kind = OptKind::Button, .bitmask = kN64BtnCDown },
+    { .label = "C left", .kind = OptKind::Button, .bitmask = kN64BtnCLeft },
+    { .label = "C right", .kind = OptKind::Button, .bitmask = kN64BtnCRight },
+    { .label = "D-pad up", .kind = OptKind::Button, .bitmask = kN64BtnDUp },
+    { .label = "D-pad down", .kind = OptKind::Button, .bitmask = kN64BtnDDown },
+    { .label = "D-pad left", .kind = OptKind::Button, .bitmask = kN64BtnDLeft },
+    { .label = "D-pad right", .kind = OptKind::Button, .bitmask = kN64BtnDRight },
+};
+
 #define ARRAY_LEN(a) (static_cast<int>(sizeof(a) / sizeof((a)[0])))
 
 const Category kCategories[] = {
@@ -241,6 +293,7 @@ const Category kCategories[] = {
     { "Enhancements", kEnhancements, ARRAY_LEN(kEnhancements) },
     { "Cheats", kCheats, ARRAY_LEN(kCheats) },
     { "Rulesets", kRulesets, ARRAY_LEN(kRulesets) },
+    { "Controls", kControls, ARRAY_LEN(kControls) },
 };
 constexpr int kCategoryCount = ARRAY_LEN(kCategories);
 
@@ -277,8 +330,99 @@ void SetFloatValue(const Option& o, float v) {
     }
 }
 
+// --- Controls: read the current bindings via the libultraship ControlDeck --------
+
+std::shared_ptr<Ship::ControllerButton> ControllerButtonFor(int bitmask) {
+    auto cd = Ship::Context::GetInstance()->GetControlDeck();
+    if (cd == nullptr) {
+        return nullptr;
+    }
+    auto controller = cd->GetControllerByPort(0); // port 0 = player one
+    if (controller == nullptr) {
+        return nullptr;
+    }
+    return controller->GetButton(static_cast<uint16_t>(bitmask));
+}
+
+// True while any button/axis of a gamepad on port 0 is pressed. Used to wait for
+// the navigation press (that opened the rebind) to be released before capturing.
+bool AnyGamepadInputDown() {
+    auto cd = Ship::Context::GetInstance()->GetControlDeck();
+    if (cd == nullptr || cd->GetConnectedPhysicalDeviceManager() == nullptr) {
+        return false;
+    }
+    for (const auto& pair : cd->GetConnectedPhysicalDeviceManager()->GetConnectedSDLGamepadsForPort(0)) {
+        SDL_GameController* gp = pair.second;
+        if (gp == nullptr) {
+            continue;
+        }
+        for (int b = SDL_CONTROLLER_BUTTON_A; b < SDL_CONTROLLER_BUTTON_MAX; b++) {
+            if (SDL_GameControllerGetButton(gp, static_cast<SDL_GameControllerButton>(b))) {
+                return true;
+            }
+        }
+        for (int a = SDL_CONTROLLER_AXIS_LEFTX; a < SDL_CONTROLLER_AXIS_MAX; a++) {
+            const float v = SDL_GameControllerGetAxis(gp, static_cast<SDL_GameControllerAxis>(a)) / 32767.0f;
+            if (v > 0.7f || v < -0.7f) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// True while any keyboard key is held (so we can wait for the rebind press to be
+// released before resuming menu input).
+bool AnyKeyboardKeyDown() {
+    int numKeys = 0;
+    const Uint8* state = SDL_GetKeyboardState(&numKeys);
+    if (state == nullptr) {
+        return false;
+    }
+    for (int i = 0; i < numKeys; i++) {
+        if (state[i]) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Any physical input (gamepad or keyboard) currently held.
+bool AnyInputDown() {
+    return AnyGamepadInputDown() || AnyKeyboardKeyDown();
+}
+
+// A mapping id encodes its device, e.g. "P0-B32768-KB60" (keyboard) vs
+// "P0-B32768-SDLB0" (gamepad). Used to replace only the same-device binding.
+bool IsKeyboardMappingId(const std::string& id) {
+    return id.find("-KB") != std::string::npos;
+}
+
+// Comma-separated names of the physical inputs bound to an N64 button, or "Not set".
+std::string BindingText(int bitmask) {
+    auto button = ControllerButtonFor(bitmask);
+    if (button == nullptr) {
+        return "Not set";
+    }
+    auto mappings = button->GetAllButtonMappings();
+    if (mappings.empty()) {
+        return "Not set";
+    }
+    std::string s;
+    for (const auto& pair : mappings) {
+        if (!s.empty()) {
+            s += ", ";
+        }
+        s += pair.second->GetPhysicalInputName(); // e.g. "Shift", "A", "Space"
+    }
+    return s;
+}
+
 // Spoken value (nicely cased, includes %).
 std::string SpeechValue(const Option& o) {
+    if (o.kind == OptKind::Button) {
+        return BindingText(o.bitmask);
+    }
     switch (o.kind) {
         case OptKind::Toggle:
             return GetIntValue(o) != 0 ? "On" : "Off";
@@ -316,6 +460,11 @@ std::string SpokenValue(const Option& o) {
 
 // Display value (uppercase, ASCII-safe for the game font: letters/digits/space).
 std::string DisplayValue(const Option& o) {
+    if (o.kind == OptKind::Button) {
+        std::string s = BindingText(o.bitmask);
+        for (char& c : s) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        return s;
+    }
     switch (o.kind) {
         case OptKind::Toggle:
             return GetIntValue(o) != 0 ? "ON" : "OFF";
@@ -429,14 +578,46 @@ class SettingsMenu {
     }
 
     int HandleInput(unsigned short b) {
+        if (mCapturing) {
+            if (mDraining) {
+                // Binding done: wait for the captured input to be released before
+                // resuming, so the still-held input doesn't immediately fire this
+                // button's own menu action (e.g. the Z button = clear).
+                if (!AnyInputDown() || ++mCaptureTicks > kRebindTimeoutTicks) {
+                    EndCapture();
+                }
+                return 0;
+            }
+            if (!mArmed) {
+                // Wait until the press that opened the rebind (and any held input) is
+                // released, so the gamepad poll doesn't capture it. Then block game
+                // input and start listening for the next press.
+                if (!AnyInputDown()) {
+                    Ship::Context::GetInstance()->GetControlDeck()->BlockGameInput(kRebindBlockId);
+                    mArmed = true;
+                } else if (++mCaptureTicks > kRebindTimeoutTicks) {
+                    EndCapture();
+                    Speak("Rebind cancelled");
+                }
+                return 0;
+            }
+            // Rebinding a control: poll for the captured press, ignore menu input.
+            PollCapture();
+            return 0;
+        }
+
         const Category& cat = kCategories[mCategory];
 
         if (b & kBtnB) {
             return 0x1 | 0x8; // exit + go-back SFX (MenuNarrator re-announces the row)
         }
         if (b & kBtnZ) {
-            // Play a Help entry's cue demo (no menu SFX; the cue is the feedback).
-            StartDemo(cat.options[mCursor].cueExample);
+            const Option& o = cat.options[mCursor];
+            if (o.kind == OptKind::Button) {
+                ClearBinding(o); // clear a control's binding
+            } else {
+                StartDemo(o.cueExample); // play a Help entry's cue demo
+            }
             return 0;
         }
         // Any other input stops a running demo.
@@ -559,6 +740,106 @@ class SettingsMenu {
         mDemoTimer = 0;
     }
 
+    // --- Controls: rebind capture via the libultraship ControlDeck ---
+    void StartCapture(const Option& o) {
+        auto button = ControllerButtonFor(o.bitmask);
+        if (button == nullptr) {
+            SPDLOG_INFO("[Controls] StartCapture: button {:#x} NOT FOUND", o.bitmask);
+            Speak("Controls not available"); // diagnostic: the lookup failed
+            return;
+        }
+        // Remember the existing mappings so the new one cleanly replaces them.
+        mOldMappingIds.clear();
+        for (const auto& pair : button->GetAllButtonMappings()) {
+            mOldMappingIds.push_back(pair.first);
+        }
+        size_t gamepads = 0;
+        auto cd = Ship::Context::GetInstance()->GetControlDeck();
+        if (cd->GetConnectedPhysicalDeviceManager() != nullptr) {
+            gamepads = cd->GetConnectedPhysicalDeviceManager()->GetConnectedSDLGamepadsForPort(0).size();
+        }
+        SPDLOG_INFO("[Controls] StartCapture: button {:#x} '{}', existing mappings={}, connected SDL gamepads for port 0={}",
+                    o.bitmask, o.label, mOldMappingIds.size(), gamepads);
+        mCapturing = true;
+        mArmed = false;
+        mCaptureBitmask = o.bitmask;
+        mCaptureLabel = o.label;
+        mCaptureTicks = 0;
+        Speak(std::string("Press the input for ") + o.label);
+    }
+    void EndCapture() {
+        Ship::Context::GetInstance()->GetControlDeck()->UnblockGameInput(kRebindBlockId);
+        mCapturing = false;
+        mArmed = false;
+        mDraining = false;
+        mOldMappingIds.clear();
+        mCaptureTicks = 0;
+    }
+    void PollCapture() {
+        auto button = ControllerButtonFor(mCaptureBitmask);
+        if (button == nullptr) {
+            EndCapture();
+            return;
+        }
+        if (button->AddOrEditButtonMappingFromRawPress(static_cast<uint16_t>(mCaptureBitmask), "")) {
+            // Replace only the SAME-device binding: find the genuinely-new mapping (the
+            // id that wasn't there before) and clear old mappings of its device type
+            // (keyboard vs gamepad), so a gamepad rebind keeps the keyboard binding and
+            // vice versa. If the captured input was already mapped here (same id, no new
+            // id), keep everything (don't leave the button unbound).
+            std::string newId;
+            for (const auto& pair : button->GetAllButtonMappings()) {
+                bool wasOld = false;
+                for (const auto& id : mOldMappingIds) {
+                    if (id == pair.first) {
+                        wasOld = true;
+                        break;
+                    }
+                }
+                if (!wasOld) {
+                    newId = pair.first;
+                    break;
+                }
+            }
+            if (!newId.empty()) {
+                const bool newIsKeyboard = IsKeyboardMappingId(newId);
+                for (const auto& id : mOldMappingIds) {
+                    if (IsKeyboardMappingId(id) == newIsKeyboard) {
+                        button->ClearButtonMapping(id);
+                    }
+                }
+            }
+            const std::string newBinding = BindingText(mCaptureBitmask);
+            SPDLOG_INFO("[Controls] captured: {} -> {} (newId='{}')", mCaptureLabel, newBinding, newId);
+            Speak(mCaptureLabel + " set to " + newBinding);
+            // Don't resume the menu until the captured input is released (see mDraining
+            // in HandleInput); keep game input blocked until then.
+            mDraining = true;
+            mCaptureTicks = 0;
+            return;
+        }
+        // Timeout so an accidental rebind can't trap the player.
+        if (++mCaptureTicks > kRebindTimeoutTicks) {
+            SPDLOG_INFO("[Controls] capture timed out for {}", mCaptureLabel);
+            EndCapture();
+            Speak("Rebind cancelled");
+        }
+    }
+    void ClearBinding(const Option& o) {
+        auto button = ControllerButtonFor(o.bitmask);
+        if (button == nullptr) {
+            SPDLOG_INFO("[Controls] ClearBinding: button {:#x} NOT FOUND", o.bitmask);
+            Speak("Controls not available");
+            return;
+        }
+        const size_t before = button->GetAllButtonMappings().size();
+        button->ClearAllButtonMappings();
+        Ship::Context::GetInstance()->GetConsoleVariables()->Save();
+        SPDLOG_INFO("[Controls] ClearBinding {} '{}': mappings {} -> {}", o.bitmask, o.label, before,
+                    button->GetAllButtonMappings().size());
+        Speak(std::string(o.label) + " cleared");
+    }
+
     void Speak(const std::string& text) {
         ScreenReaderService::Instance().Speak(text, true);
     }
@@ -572,6 +853,10 @@ class SettingsMenu {
     void ActivateOption(const Option& o, int dir) {
         if (o.kind == OptKind::Info) {
             Speak(o.help != nullptr ? o.help : o.label);
+            return;
+        }
+        if (o.kind == OptKind::Button) {
+            StartCapture(o);
             return;
         }
         Adjust(o, dir);
@@ -600,6 +885,15 @@ class SettingsMenu {
     int mDemoLen = 0;
     int mDemoIndex = 0;
     int mDemoTimer = 0;
+
+    // Controls category: rebind capture state.
+    bool mCapturing = false;
+    bool mArmed = false;    // true once the opening press is released and we're listening
+    bool mDraining = false; // true after binding, waiting for the captured input to release
+    int mCaptureBitmask = 0;
+    std::string mCaptureLabel;
+    int mCaptureTicks = 0;
+    std::vector<std::string> mOldMappingIds;
 };
 
 // --- C API ------------------------------------------------------------------

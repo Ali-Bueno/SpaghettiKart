@@ -117,6 +117,19 @@ void Accessibility_SetKartAudioPan(f32 pan) {
     sAccessKartPanActive = 1;
 }
 
+// Accessibility: scale the rival karts' audio volume (player two onward) so a blind
+// player can pick out their own kart more easily. 1.0 = unchanged, 0.0 = silent.
+// Applied to sp3C in func_800C19D0 for sounds belonging to rival karts.
+static f32 sAccessRivalKartVolume = 1.0f;
+void Accessibility_SetRivalKartVolume(f32 volume) {
+    if (volume < 0.0f) {
+        volume = 0.0f;
+    } else if (volume > 1.0f) {
+        volume = 1.0f;
+    }
+    sAccessRivalKartVolume = volume;
+}
+
 struct Unk_800EA06C D_800EA06C[NUM_PLAYERS] = { { { 0.0f, 1.0f, 1.0f }, 0 }, { { 0.0f, 1.0f, 1.0f }, 0 },
                                      { { 0.0f, 1.0f, 1.0f }, 0 }, { { 0.0f, 1.0f, 1.0f }, 0 },
                                      { { 0.0f, 1.0f, 1.0f }, 0 }, { { 0.0f, 1.0f, 1.0f }, 0 },
@@ -405,6 +418,26 @@ void func_800C19D0(u8 arg0, u8 arg1, u8 arg2) {
             // volume (sp3C) is left untouched.
             if (sAccessKartPanActive && ((f32*) temp_s0->unk00 == &D_800E9F7C[0].pos[0])) {
                 sp33 = sAccessKartPanByte;
+            }
+
+            // Accessibility: lower the rival karts' sounds so a blind player can pick out
+            // their own kart. In single player the rivals' audio is keyed by character in
+            // its soundBits (not by the per-kart position used for player one's engine):
+            //   - Bank 3 engine drone:   0x31028000 + characterId           (low 3 bits = character)
+            //   - Bank 2 character voice: 0x29008000 + characterId*0x10 + clip ((low >> 4) = character)
+            // The player's own character is left at full volume; environment/object sounds
+            // (other banks) are untouched.
+            if (sAccessRivalKartVolume < 1.0f) {
+                u32 sb = temp_s0->soundBits;
+                s32 soundChar = -1;
+                if ((sb & 0xFFFFFFF8) == SOUND_ARG_LOAD(0x31, 0x02, 0x80, 0x00)) {
+                    soundChar = (s32) (sb & 0x7);
+                } else if ((sb & 0xFFFFFF00) == SOUND_ARG_LOAD(0x29, 0x00, 0x80, 0x00)) {
+                    soundChar = (s32) ((sb >> 4) & 0x7);
+                }
+                if ((soundChar >= 0) && (soundChar != gPlayers[0].characterId)) {
+                    sp3C *= sAccessRivalKartVolume;
+                }
             }
 
             // Set surround effect index when in surround mode

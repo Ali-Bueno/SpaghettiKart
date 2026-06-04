@@ -46,16 +46,17 @@ enum SubMenuSelectionType {
     SUB_MENU_OPTION_ENHANCEMENTS,                        // 0x18
     SUB_MENU_OPTION_CHEATS,                              // 0x19
     SUB_MENU_OPTION_RULESETS,                            // 0x1A
-    SUB_MENU_OPTION_COPY_CONTROLLER_PAK,                 // 0x1B native flow (refs are by name)
-    SUB_MENU_OPTION_ERASE_ALL_DATA,                      // 0x1C native flow
-    SUB_MENU_OPTION_RETURN_GAME_SELECT,                  // 0x1D last row
-    SUB_MENU_OPTION_MAX = SUB_MENU_OPTION_RETURN_GAME_SELECT, // 0x1D
+    SUB_MENU_OPTION_CONTROLS,                            // 0x1B controller bindings
+    SUB_MENU_OPTION_COPY_CONTROLLER_PAK,                 // 0x1C native flow (refs are by name)
+    SUB_MENU_OPTION_ERASE_ALL_DATA,                      // 0x1D native flow
+    SUB_MENU_OPTION_RETURN_GAME_SELECT,                  // 0x1E last row
+    SUB_MENU_OPTION_MAX = SUB_MENU_OPTION_RETURN_GAME_SELECT, // 0x1E
     SUB_MENU_MOD_SETTINGS = 0x50,                        // sentinel: inside a category (clear of all sub-flows)
-    SUB_MENU_ERASE_MIN = 0x1E,
+    SUB_MENU_ERASE_MIN = 0x21,                           // moved up: 0x1E..0x20 are now option rows
     SUB_MENU_ERASE_QUIT = SUB_MENU_ERASE_MIN,
     SUB_MENU_ERASE_ERASE,
-    SUB_MENU_ERASE_MAX = SUB_MENU_ERASE_ERASE, // 0x1F
-    SUB_MENU_SAVE_DATA_ERASED,                 // 0x20
+    SUB_MENU_ERASE_MAX = SUB_MENU_ERASE_ERASE, // 0x22
+    SUB_MENU_SAVE_DATA_ERASED,                 // 0x23
     SUB_MENU_COPY_PAK_FROM_GHOST_MIN = 0x28,
     SUB_MENU_COPY_PAK_FROM_GHOST1_1P = SUB_MENU_COPY_PAK_FROM_GHOST_MIN,
     SUB_MENU_COPY_PAK_FROM_GHOST2_1P,
