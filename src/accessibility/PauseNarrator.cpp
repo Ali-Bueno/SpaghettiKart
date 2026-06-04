@@ -35,13 +35,19 @@ using namespace AccessibilityStrings;
 namespace {
 
 // MenuItem type ids (menu_items.h).
-constexpr int32_t kMenuItemPause = 0xC7;       // MENU_ITEM_PAUSE
-constexpr int32_t kMenuItemEndCourse = 0xBD;   // MENU_ITEM_END_COURSE_OPTION
+constexpr int32_t kMenuItemPause = 0xC7;        // MENU_ITEM_PAUSE
+constexpr int32_t kMenuItemEndCourse = 0xBD;    // MENU_ITEM_END_COURSE_OPTION
+constexpr int32_t kMenuItemTimeTrialEnd = 0xBA; // MENU_ITEM_TYPE_0BA (time trial finish menu)
 
-// The end-course menu's cursor lives in MenuItem.state over this inclusive range
-// (6 options); below it the item is in its intro/animation phase.
+// Both finish menus share the same option layout (gTextPauseButton[idx + 1] = Retry,
+// Course change, Driver change, Quit, Replay, Save ghost) but the cursor's base state
+// value differs; below the range the item is in its intro/animation phase:
+//   - Time trial finish menu (0xBA): cursor state 0x05..0x0A (selected = state - 5)
+//   - End-course option menu (0xBD): cursor state 0x0B..0x10 (selected = state - 0x0B)
 constexpr int kEndCourseMin = 0x0B;
 constexpr int kEndCourseMax = 0x10;
+constexpr int kTimeTrialEndMin = 0x05;
+constexpr int kTimeTrialEndMax = 0x0A;
 
 // gTextPauseButton indices (TEXT_MENU_ID in menu_items.h), used to index
 // PAUSE_OPTIONS[].
@@ -115,26 +121,37 @@ std::string PauseNarrator::PauseOption() const {
 }
 
 std::string PauseNarrator::EndCourseOption() const {
-    const AccessMenuItem* item = find_menu_items(kMenuItemEndCourse);
-    if (item == nullptr || item->state < kEndCourseMin || item->state > kEndCourseMax) {
-        return "";
+    // Time trial finish menu (0xBA): func_800A3E60 highlights option (state - 5) and
+    // draws gTextPauseButton[option + 1].
+    const AccessMenuItem* tt = find_menu_items(kMenuItemTimeTrialEnd);
+    if (tt != nullptr && tt->state >= kTimeTrialEndMin && tt->state <= kTimeTrialEndMax) {
+        const int optionId = (tt->state - kTimeTrialEndMin) + 1;
+        if (optionId >= 0 && optionId < 7) {
+            return PAUSE_OPTIONS[optionId];
+        }
     }
-    // render_menu_item_end_course_option draws gTextPauseButton[idx + 1] for
-    // idx = state - 0x0B, i.e. Retry, Course change, Driver change, Quit, Replay,
-    // Save ghost.
-    const int optionId = (item->state - kEndCourseMin) + 1;
-    if (optionId < 0 || optionId >= 7) {
-        return "";
+    // End-course option menu (0xBD): render_menu_item_end_course_option draws
+    // gTextPauseButton[idx + 1] for idx = state - 0x0B.
+    const AccessMenuItem* ec = find_menu_items(kMenuItemEndCourse);
+    if (ec != nullptr && ec->state >= kEndCourseMin && ec->state <= kEndCourseMax) {
+        const int optionId = (ec->state - kEndCourseMin) + 1;
+        if (optionId >= 0 && optionId < 7) {
+            return PAUSE_OPTIONS[optionId];
+        }
     }
-    return PAUSE_OPTIONS[optionId];
+    return "";
 }
 
 bool PauseNarrator::MenuActive() const {
     if (gIsGamePaused != 0) {
         return true;
     }
-    const AccessMenuItem* item = find_menu_items(kMenuItemEndCourse);
-    return item != nullptr && item->state >= kEndCourseMin && item->state <= kEndCourseMax;
+    const AccessMenuItem* tt = find_menu_items(kMenuItemTimeTrialEnd);
+    if (tt != nullptr && tt->state >= kTimeTrialEndMin && tt->state <= kTimeTrialEndMax) {
+        return true;
+    }
+    const AccessMenuItem* ec = find_menu_items(kMenuItemEndCourse);
+    return ec != nullptr && ec->state >= kEndCourseMin && ec->state <= kEndCourseMax;
 }
 
 std::string PauseNarrator::CurrentOption(int* kind) const {
@@ -142,10 +159,10 @@ std::string PauseNarrator::CurrentOption(int* kind) const {
         *kind = 1;
         return PauseOption();
     }
-    const AccessMenuItem* item = find_menu_items(kMenuItemEndCourse);
-    if (item != nullptr && item->state >= kEndCourseMin && item->state <= kEndCourseMax) {
+    const std::string endOption = EndCourseOption();
+    if (!endOption.empty()) {
         *kind = 2;
-        return EndCourseOption();
+        return endOption;
     }
     *kind = 0;
     return "";
