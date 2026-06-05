@@ -3,8 +3,13 @@
 #include "port/Engine.h"
 #include "port/audio/HMAS.h"
 
+#include <libultraship.h> // Ship::Context::LocateFileAcrossAppDirs
+#include <spdlog/spdlog.h>
+
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
+#include <string>
 
 namespace {
 
@@ -12,11 +17,17 @@ constexpr HMAS_AudioId kApproachBeepId = 0x40ACCE51;
 constexpr HMAS_AudioId kCurveBeepId = 0x40ACCE52;
 constexpr HMAS_AudioId kEdgeBeepId = 0x40ACCE53;
 constexpr HMAS_AudioId kEdgeToneId = 0x40ACCE54;
+constexpr HMAS_AudioId kItemBoxBeaconId = 0x40ACCE55;
 // Curve-related cues and the edge cue live on separate channels so a continuous
 // edge tone never cuts the curve beeps (and vice versa). The game itself only
-// uses HMAS_MUSIC, so HMAS_ENV and HMAS_SFX are free for accessibility cues.
-constexpr HMAS_ChannelId kCurveChannel = HMAS_ENV; // approach + curve-progress beeps
-constexpr HMAS_ChannelId kEdgeChannel = HMAS_SFX;  // edge beeps + held edge tone
+// uses HMAS_MUSIC, so HMAS_ENV, HMAS_SFX and HMAS_ACCESS are free for our cues.
+constexpr HMAS_ChannelId kCurveChannel = HMAS_ENV;     // approach + curve-progress beeps
+constexpr HMAS_ChannelId kEdgeChannel = HMAS_SFX;      // edge beeps + held edge tone
+constexpr HMAS_ChannelId kBeaconChannel = HMAS_ACCESS; // item-box proximity beacon
+
+// Item-box beacon sound, loaded from a file shipped next to the executable (resolved
+// across the app dirs). Float/PCM WAV both work via miniaudio.
+constexpr char kItemBoxBeaconFile[] = "sounds/SE_ITM_BOX_BRK.wav";
 
 constexpr int kSampleRate = 32000;
 constexpr float kBeepVolume = 0.55f;
@@ -176,4 +187,46 @@ void AudioCueService::SetEdgeTone(bool on, float pitch, float pan) {
         hmas->Stop(kEdgeChannel);
         mEdgeTonePlaying = false;
     }
+}
+
+bool AudioCueService::EnsureBeaconLoaded() {
+    if (mBeaconReady) {
+        return true;
+    }
+    if (mBeaconLoadFailed) {
+        return false; // already determined the file is missing; don't retry each frame
+    }
+    if (GameEngine::Instance == nullptr || GameEngine::Instance->gHMAS == nullptr) {
+        return false; // audio engine not up yet; try again later (not a hard failure)
+    }
+    HMAS* hmas = GameEngine::Instance->gHMAS;
+    if (!hmas->IsIDRegistered(kItemBoxBeaconId)) {
+        const std::string path = Ship::Context::LocateFileAcrossAppDirs(kItemBoxBeaconFile);
+        if (!std::filesystem::exists(path)) {
+            SPDLOG_WARN("[Accessibility] item-box beacon sound not found: {}", kItemBoxBeaconFile);
+            mBeaconLoadFailed = true; // give up until next launch (avoids per-frame disk checks)
+            return false;
+        }
+        hmas->RegisterSound(kItemBoxBeaconId, path);
+    }
+    mBeaconReady = hmas->IsIDRegistered(kItemBoxBeaconId);
+    return mBeaconReady;
+}
+
+void AudioCueService::PlayItemBoxBeacon(float pan, float volume, float pitch) {
+    if (!EnsureBeaconLoaded()) {
+        return;
+    }
+    HMAS* hmas = GameEngine::Instance->gHMAS;
+    hmas->Play(kBeaconChannel, kItemBoxBeaconId, false);
+    hmas->SetPan(kBeaconChannel, std::clamp(pan, -1.0f, 1.0f));
+    hmas->SetVolume(kBeaconChannel, std::clamp(volume, 0.0f, 1.0f));
+    hmas->SetPitch(kBeaconChannel, std::clamp(pitch, 0.25f, 3.0f));
+}
+
+void AudioCueService::StopItemBoxBeacon() {
+    if (!mBeaconReady) {
+        return;
+    }
+    GameEngine::Instance->gHMAS->Stop(kBeaconChannel);
 }

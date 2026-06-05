@@ -81,16 +81,18 @@ void AccessibilityManager::Tick() {
 
     if (!Enabled()) {
         mDriveAssist.Reset(); // recenter game audio if disabled mid-race
+        mItemBoxBeacon.Reset();
         return;
     }
 
     EnsureScreenReaderInitialized();
 
+    // Do NOT bail out when the screen reader is unavailable: Speak() safely no-ops in
+    // that case, but the non-speech aids (drive assist, item-box beacon, audio cues)
+    // don't need a screen reader and should still run. This matters when PRISM can't
+    // attach to the active reader (e.g. some JAWS setups) - the player still gets the
+    // driving cues even if narration is silent.
     ScreenReaderService& reader = ScreenReaderService::Instance();
-    if (!reader.IsAvailable()) {
-        mDriveAssist.Reset();
-        return;
-    }
 
     if (gGamestate == RACING) {
         mMenuNarrator.Reset();
@@ -103,11 +105,13 @@ void AccessibilityManager::Tick() {
             mPauseNarrator.Reset();
             mRaceNarrator.Reset();
             mDriveAssist.Reset();
+            mItemBoxBeacon.Reset();
         } else if (mPauseNarrator.MenuActive()) {
             // An in-race overlay menu is up (pause, or the end-course/replay menu):
             // silence the driving cues and narrate the menu.
             mRaceNarrator.Reset();
             mDriveAssist.Reset();
+            mItemBoxBeacon.Reset();
             if (CVarGetInteger(CVAR_ACCESS_MENU_NARRATION, CVAR_ACCESS_MENU_NARRATION_DEFAULT) != 0) {
                 mPauseNarrator.Tick(reader);
             }
@@ -117,16 +121,21 @@ void AccessibilityManager::Tick() {
             if (CVarGetInteger(CVAR_ACCESS_RACE_NARRATION, CVAR_ACCESS_RACE_NARRATION_DEFAULT) != 0) {
                 mRaceNarrator.Tick(reader);
             }
-            // The driving cues must only play while the race is actually being driven:
-            // after "Go!" and before the finish line (and during a replay) - all of which
-            // run with gRaceState == RACE_IN_PROGRESS. During the start intro/countdown
-            // and after crossing the line the kart still exists but is not being raced,
-            // so the cues stay silent.
-            if (gRaceState == RACE_IN_PROGRESS &&
-                CVarGetInteger(CVAR_ACCESS_DRIVE_ASSIST, CVAR_ACCESS_DRIVE_ASSIST_DEFAULT) != 0) {
-                mDriveAssist.Tick(reader);
+            // The driving cues (steering guide + item-box beacon) must only play while
+            // the race is actually being driven: after "Go!" and before the finish line
+            // (and during a replay) - all of which run with gRaceState == RACE_IN_PROGRESS.
+            // During the start intro/countdown and after crossing the line the kart still
+            // exists but is not being raced, so the cues stay silent.
+            if (gRaceState == RACE_IN_PROGRESS) {
+                if (CVarGetInteger(CVAR_ACCESS_DRIVE_ASSIST, CVAR_ACCESS_DRIVE_ASSIST_DEFAULT) != 0) {
+                    mDriveAssist.Tick(reader);
+                } else {
+                    mDriveAssist.Reset();
+                }
+                mItemBoxBeacon.Tick(); // has its own toggle (CVAR_ACCESS_ITEMBOX_CUE)
             } else {
                 mDriveAssist.Reset();
+                mItemBoxBeacon.Reset();
             }
         }
     } else if (gGamestate != ENDING && gGamestate != CREDITS_SEQUENCE) {
@@ -136,6 +145,7 @@ void AccessibilityManager::Tick() {
         mRaceNarrator.Reset();
         if (!SettingsMenu_DemoActive()) {
             mDriveAssist.Reset(); // skip while a cue demo plays so its held edge tone survives
+            mItemBoxBeacon.Reset();
         }
         if (CVarGetInteger(CVAR_ACCESS_MENU_NARRATION, CVAR_ACCESS_MENU_NARRATION_DEFAULT) != 0) {
             mMenuNarrator.Tick(reader);
@@ -146,6 +156,7 @@ void AccessibilityManager::Tick() {
         mPauseNarrator.Reset();
         mRaceNarrator.Reset();
         mDriveAssist.Reset();
+        mItemBoxBeacon.Reset();
         if (gGamestate == ENDING &&
             CVarGetInteger(CVAR_ACCESS_MENU_NARRATION, CVAR_ACCESS_MENU_NARRATION_DEFAULT) != 0) {
             mPostRaceNarrator.Tick(reader);

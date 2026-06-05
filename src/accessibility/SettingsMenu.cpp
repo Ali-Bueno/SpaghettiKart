@@ -41,6 +41,7 @@ constexpr int kCueNone = 0;
 constexpr int kCueApproach = 1;
 constexpr int kCueCurve = 2;
 constexpr int kCueEdge = 3;
+constexpr int kCueItemBox = 4;
 
 // Game-input block id used while capturing a control rebind (arbitrary, unique).
 constexpr int kRebindBlockId = 0x52424E44; // 'RBND'
@@ -157,6 +158,11 @@ const Option kAccessibility[] = {
     { .label = "Edge sensitivity", .kind = OptKind::IntSlider, .cvar = CVAR_ACCESS_EDGE_SENSITIVITY,
       .idefault = CVAR_ACCESS_EDGE_SENSITIVITY_DEFAULT, .fmin = 0, .fmax = 100, .fstep = 5,
       .asPercent = true },
+    { .label = "Item box cue", .kind = OptKind::Toggle, .cvar = CVAR_ACCESS_ITEMBOX_CUE,
+      .idefault = CVAR_ACCESS_ITEMBOX_CUE_DEFAULT },
+    { .label = "Item box range", .kind = OptKind::IntSlider, .cvar = CVAR_ACCESS_ITEMBOX_RANGE,
+      .idefault = CVAR_ACCESS_ITEMBOX_RANGE_DEFAULT, .fmin = 0, .fmax = 100, .fstep = 5,
+      .asPercent = true },
     // Help entries: focus to hear the name, press A to hear how that cue works.
     { .label = "Help: steering guide", .kind = OptKind::Info,
       .help = "The engine sound leans left or right toward the way you should steer to follow the racing "
@@ -177,6 +183,11 @@ const Option kAccessibility[] = {
               "steady tone sounds right at the edge. It stays silent while you are centered. Edge sensitivity "
               "sets how early it starts. Press Z to hear an example.",
       .cueExample = kCueEdge },
+    { .label = "Help: item box cue", .kind = OptKind::Info,
+      .help = "When you are not holding an item, a blip points toward the nearest item box: panned to its "
+              "side and louder as you get closer, so you can steer onto it. It stops once you grab a box. "
+              "Item box range sets how early it starts. Press Z to hear an example.",
+      .cueExample = kCueItemBox },
     { .label = "Help: off-road cue", .kind = OptKind::Info,
       .help = "A voice says off road when you leave the track, and on road when you return." },
 };
@@ -522,13 +533,14 @@ void Adjust(const Option& o, int dir) {
 
 // A scripted demo of a cue: a timed sequence of beeps / held-tone events that
 // mimics how the cue actually plays during a race.
-enum { DEMO_BEEP = 0, DEMO_TONE_ON = 1, DEMO_TONE_OFF = 2 };
+enum { DEMO_BEEP = 0, DEMO_TONE_ON = 1, DEMO_TONE_OFF = 2, DEMO_BEACON = 3 };
 struct DemoStep {
     int wait;       // ticks to wait before firing this step
-    int action;     // DEMO_BEEP / DEMO_TONE_ON / DEMO_TONE_OFF
+    int action;     // DEMO_BEEP / DEMO_TONE_ON / DEMO_TONE_OFF / DEMO_BEACON
     CueBeep beep;
     float pitch;
     float pan;
+    float volume;   // DEMO_BEACON only (other demos leave it 0)
 };
 
 // Approach: three rising beeps counting down to the curve (DriveAssist kPitches).
@@ -556,6 +568,17 @@ const DemoStep kEdgeDemo[] = {
     { 4,  DEMO_BEEP,     CueBeep::Edge, 1.80f, 0.9f },
     { 3,  DEMO_TONE_ON,  CueBeep::Edge, 1.80f, 0.9f },
     { 30, DEMO_TONE_OFF, CueBeep::Edge, 0.00f, 0.0f },
+};
+
+// Item box beacon: blips approaching a box ahead (panning toward center, growing louder
+// at full pitch), then - once you drive past it - the same box from behind at a lower
+// pitch and fading (the Doppler "you passed it" cue). Fields are pitch, pan, volume.
+const DemoStep kItemBoxDemo[] = {
+    { 0,  DEMO_BEACON, CueBeep::Approach, 1.00f, -0.5f, 0.55f }, // ahead-left, approaching
+    { 18, DEMO_BEACON, CueBeep::Approach, 1.00f, -0.2f, 0.80f }, // closer
+    { 18, DEMO_BEACON, CueBeep::Approach, 1.00f,  0.0f, 0.95f }, // right on it
+    { 18, DEMO_BEACON, CueBeep::Approach, 0.85f,  0.4f, 0.70f }, // just passed it: lower, behind
+    { 18, DEMO_BEACON, CueBeep::Approach, 0.72f,  0.3f, 0.45f }, // receding behind
 };
 
 } // namespace
@@ -704,6 +727,9 @@ class SettingsMenu {
             case DEMO_TONE_OFF:
                 AudioCueService::Instance().SetEdgeTone(false, 0.0f, 0.0f);
                 break;
+            case DEMO_BEACON:
+                AudioCueService::Instance().PlayItemBoxBeacon(s.pan, s.volume, s.pitch);
+                break;
         }
         mDemoIndex++;
         if (mDemoIndex >= mDemoLen) {
@@ -726,6 +752,7 @@ class SettingsMenu {
             case kCueApproach: mDemo = kApproachDemo; mDemoLen = ARRAY_LEN(kApproachDemo); break;
             case kCueCurve:    mDemo = kCurveDemo;    mDemoLen = ARRAY_LEN(kCurveDemo);    break;
             case kCueEdge:     mDemo = kEdgeDemo;     mDemoLen = ARRAY_LEN(kEdgeDemo);     break;
+            case kCueItemBox:  mDemo = kItemBoxDemo;  mDemoLen = ARRAY_LEN(kItemBoxDemo);  break;
             default:           return; // no example for this entry
         }
         mDemoIndex = 0;

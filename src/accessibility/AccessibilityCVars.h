@@ -21,6 +21,12 @@
 // cue stays silent while you are centered; higher = it begins sooner / from further
 // in, lower = it stays silent until you are closer to the edge.
 #define CVAR_ACCESS_EDGE_SENSITIVITY "gAccessibility.EdgeSensitivity"
+// 3D proximity beacon for item boxes: a panned blip toward the nearest item box,
+// louder as you close in, so the player can steer onto it. Stops once an item is held.
+#define CVAR_ACCESS_ITEMBOX_CUE "gAccessibility.ItemBoxCue"
+// Item-box beacon range 0-100: how far away the beacon starts guiding you to a box.
+// Lower = only when close; higher = warns from further out.
+#define CVAR_ACCESS_ITEMBOX_RANGE "gAccessibility.ItemBoxRange"
 // Rival-kart engine volume scale (0..1): lowered by default so a blind player can
 // pick out their own kart over the pack. Applied live in src/audio/external.c.
 #define CVAR_ACCESS_RIVAL_VOLUME "gAccessibility.RivalKartVolume"
@@ -44,6 +50,8 @@
 #define CVAR_ACCESS_DRIVE_LOOKAHEAD_DEFAULT 12
 #define CVAR_ACCESS_EDGE_CUE_DEFAULT 1
 #define CVAR_ACCESS_EDGE_SENSITIVITY_DEFAULT 50
+#define CVAR_ACCESS_ITEMBOX_CUE_DEFAULT 1
+#define CVAR_ACCESS_ITEMBOX_RANGE_DEFAULT 50
 
 // Recommended starting volumes (0..1) seeded once on first run. Testers reported they
 // follow the audio cues better with the music and rival karts a little quieter.

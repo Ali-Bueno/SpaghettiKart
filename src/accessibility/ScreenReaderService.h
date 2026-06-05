@@ -43,6 +43,10 @@ class ScreenReaderService {
     bool mAvailable = false;
 
 #ifdef ENABLE_PRISM
+    // Initialize and adopt a backend; returns true and sets mBackend/mAvailable on
+    // success. Used for both the auto-picked best backend and the per-backend fallback.
+    bool TryUseBackend(struct PrismBackend* backend);
+
     struct PrismContext* mContext = nullptr;
     struct PrismBackend* mBackend = nullptr;
 #endif

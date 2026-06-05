@@ -34,13 +34,25 @@ class AudioCueService {
     // it playing and steers its pan/pitch; on=false stops it. Idempotent.
     void SetEdgeTone(bool on, float pitch, float pan);
 
+    // One-shot item-box beacon blip on its own channel: panned toward the box, scaled
+    // by distance, and re-pitched (lower once the box is behind you, a Doppler "you
+    // passed it" cue). pan -1..+1, volume 0..1, pitch multiplies the base frequency.
+    // Retriggered by ItemBoxBeacon every ~600 ms. Loads SE_ITM_BOX_BRK.wav on first use;
+    // a no-op if that file is missing.
+    void PlayItemBoxBeacon(float pan, float volume, float pitch = 1.0f);
+    // Cut any in-progress beacon blip (e.g. when the box is collected or the race ends).
+    void StopItemBoxBeacon();
+
   private:
     AudioCueService() = default;
 
     bool EnsureInitialized();
+    bool EnsureBeaconLoaded();
 
     bool mReady = false;
     bool mEdgeTonePlaying = false; // whether the looping edge tone is currently playing
+    bool mBeaconReady = false;     // whether the item-box beacon sound is loaded
+    bool mBeaconLoadFailed = false; // file missing: don't keep retrying every frame
 
     // WAV buffers kept alive: the miniaudio decoders reference them.
     std::vector<uint8_t> mApproachWav;

@@ -753,6 +753,15 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/mk64.o2r")
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/mk64.o2r" "$<TARGET_FILE_DIR:Spaghettify>/mk64.o2r")
 endif()
 
+# Accessibility audio cues loaded from files at runtime (e.g. the item-box beacon).
+# Kept next to the executable so an in-tree build / release can find them via
+# Ship::Context::LocateFileAcrossAppDirs("sounds/...").
+if(EXISTS "${CMAKE_SOURCE_DIR}/sounds")
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMENT "Copying accessibility sounds next to the executable..."
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/sounds" "$<TARGET_FILE_DIR:Spaghettify>/sounds")
+endif()
+
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
   include(ExternalProject)
   ExternalProject_Add(TorchExternal

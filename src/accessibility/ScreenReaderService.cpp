@@ -17,6 +17,24 @@ ScreenReaderService::~ScreenReaderService() {
 
 #ifdef ENABLE_PRISM
 
+bool ScreenReaderService::TryUseBackend(PrismBackend* backend) {
+    if (backend == nullptr) {
+        return false;
+    }
+    // acquire may hand back a backend that is already initialized (e.g. the NVDA
+    // backend), so treat ALREADY_INITIALIZED as success, not failure.
+    const PrismError err = prism_backend_initialize(backend);
+    if (err != PRISM_OK && err != PRISM_ERROR_ALREADY_INITIALIZED) {
+        SPDLOG_WARN("[Accessibility] PRISM backend '{}' failed to initialize (error {}).",
+                    prism_backend_name(backend), static_cast<int>(err));
+        return false;
+    }
+    mBackend = backend;
+    mAvailable = true;
+    SPDLOG_INFO("[Accessibility] Screen reader ready using backend: {}", prism_backend_name(backend));
+    return true;
+}
+
 bool ScreenReaderService::Initialize() {
     if (mInitialized) {
         return mAvailable;
@@ -30,26 +48,36 @@ bool ScreenReaderService::Initialize() {
         return false;
     }
 
-    // acquire_best picks the active screen reader / TTS for the current platform.
-    mBackend = prism_registry_acquire_best(mContext);
-    if (mBackend == nullptr) {
-        SPDLOG_WARN("[Accessibility] No screen reader backend is currently available.");
-        return false;
+    // Log every backend PRISM compiled in / sees on this machine. This is the key
+    // diagnostic when a particular screen reader (e.g. JAWS) isn't being picked up:
+    // the log shows whether its backend is even present and what priority it has.
+    const size_t count = prism_registry_count(mContext);
+    SPDLOG_INFO("[Accessibility] PRISM registry has {} backend(s):", count);
+    for (size_t i = 0; i < count; ++i) {
+        const PrismBackendId id = prism_registry_id_at(mContext, i);
+        const char* name = prism_registry_name(mContext, id);
+        SPDLOG_INFO("[Accessibility]   backend: {} (priority {})", name != nullptr ? name : "(unnamed)",
+                    prism_registry_priority(mContext, id));
     }
 
-    // acquire_best may hand back a backend that is already initialized (e.g. the
-    // NVDA backend), so treat ALREADY_INITIALIZED as success, not failure.
-    const PrismError err = prism_backend_initialize(mBackend);
-    if (err != PRISM_OK && err != PRISM_ERROR_ALREADY_INITIALIZED) {
-        SPDLOG_WARN("[Accessibility] PRISM backend '{}' failed to initialize (error {}).",
-                    prism_backend_name(mBackend), static_cast<int>(err));
-        mBackend = nullptr;
-        return false;
+    // First try PRISM's auto-pick (the active screen reader for this platform).
+    if (TryUseBackend(prism_registry_acquire_best(mContext))) {
+        return true;
     }
 
-    mAvailable = true;
-    SPDLOG_INFO("[Accessibility] Screen reader ready using backend: {}", prism_backend_name(mBackend));
-    return true;
+    // The best pick was unusable (this is what happened with JAWS for one user). Fall
+    // back to trying every registered backend in turn so a working one - the user's
+    // actual screen reader, or a system TTS like SAPI - is still found.
+    SPDLOG_WARN("[Accessibility] Best backend unusable; trying each registered backend.");
+    for (size_t i = 0; i < count; ++i) {
+        const PrismBackendId id = prism_registry_id_at(mContext, i);
+        if (TryUseBackend(prism_registry_acquire(mContext, id))) {
+            return true;
+        }
+    }
+
+    SPDLOG_WARN("[Accessibility] No usable screen reader backend was found.");
+    return false;
 }
 
 void ScreenReaderService::Shutdown() {

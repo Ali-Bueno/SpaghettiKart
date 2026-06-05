@@ -6,6 +6,7 @@ enum HMAS_ChannelId {
     HMAS_MUSIC,
     HMAS_SFX,
     HMAS_ENV,
+    HMAS_ACCESS, // accessibility item-box beacon: its own channel so it never cuts the cue beeps
     HMAS_MAX_CHANNELS
 };
 
