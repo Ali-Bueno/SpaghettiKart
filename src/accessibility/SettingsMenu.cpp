@@ -174,7 +174,8 @@ const Option kAccessibility[] = {
     { .label = "Help: curve calls", .kind = OptKind::Info,
       .help = "Before each curve a voice calls its direction and how tight it is: easy, normal, hard, or "
               "hairpin, plus long for a sustained curve. For example easy left, right, hard right, or "
-              "hairpin left. Each curve is called once per lap so you can prepare to turn." },
+              "hairpin left. When two or more curves run together with no straight between them, they are "
+              "called as one, like hard left then easy right. Each curve is called once per lap." },
     { .label = "Help: approach beeps", .kind = OptKind::Info,
       .help = "As you near a curve, rising beeps count down to it. Press Z to hear an example.",
       .cueExample = kCueApproach },

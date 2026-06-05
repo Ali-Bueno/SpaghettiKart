@@ -91,5 +91,8 @@ inline constexpr const char* TURN_PREFIX_HARD = "Hard ";
 inline constexpr const char* TURN_PREFIX_EASY = "Easy ";
 // Appended for a sustained (long) curve.
 inline constexpr const char* TURN_SUFFIX_LONG = " long";
+// Joins back-to-back curves with no straight between them into one call, e.g.
+// "Hard left then easy right".
+inline constexpr const char* TURN_CHAIN = " then ";
 
 } // namespace AccessibilityStrings

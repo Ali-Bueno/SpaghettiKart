@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <vector>
 
 class ScreenReaderService;
@@ -51,6 +52,8 @@ class DriveAssist {
     // (-total/2, total/2]; positive = `to` is ahead. Uses the cumulative-length table so it
     // does not depend on the (non-uniform) path-point spacing.
     float ArcForward(int from, int to) const;
+    // Spoken call for one curve, e.g. "Hard left", "Easy right long".
+    std::string CurvePhrase(const Curve& c) const;
 
     // Curve map, rebuilt when the track / path changes.
     const void* mMapKey = nullptr; // gTrackPaths[pathIndex] the map was built from
@@ -60,9 +63,9 @@ class DriveAssist {
     std::vector<float> mCumDist; // cumulative arc length per point (size count + 1)
     std::vector<Curve> mCurves;  // curves around the loop, in path order
 
-    int mActiveCurve = -1;    // curve being approached / driven (index into mCurves)
-    int mAnnouncedCurve = -1; // last curve announced (re-armed on change and each lap)
-    int mLastLap = -1;        // player lap, to re-arm announcements every lap
+    int mActiveCurve = -1;       // curve being approached / driven (index into mCurves)
+    std::vector<bool> mAnnounced; // per-curve: already spoken this lap (sized to mCurves)
+    int mLastLap = -1;           // player lap, to re-arm announcements every lap
     int mApproachBeeps = 0;   // approach beeps played for the active curve
     int mCurvePhase = 0;      // traversal-beep state for the active curve (0..3)
     int mEdgeBeepTimer = 0;   // ticks until the next edge beep

@@ -72,6 +72,13 @@ constexpr float kApproachPts[3] = { 10.0f, 6.0f, 3.0f };
 constexpr float kApproachPitch[3] = { 1.0f, 1.25f, 1.55f };
 constexpr float kClearPts = 3.0f; // points past a curve's exit before it stops being "active"
 
+// Series ("chicane") handling: if the gap between one curve's exit and the next curve's entry
+// is shorter than this, there is effectively no straight between them, so they are announced
+// together as one call ("hard left then easy right"). Up to kMaxChain curves are chained so the
+// call stays short.
+constexpr float kChainGapPts = 5.0f;
+constexpr int kMaxChain = 3;
+
 // In-curve traversal beeps: entry and apex share a pitch, the exit is higher to mark the end.
 constexpr float kCurveEntryPitch = 1.0f;
 constexpr float kCurveApexPitch = 1.0f;
@@ -146,6 +153,7 @@ float DriveAssist::ArcForward(int from, int to) const {
 // the player's path index changes.
 void DriveAssist::RebuildCurveMap(int pathIndex, int count) {
     mCurves.clear();
+    mAnnounced.clear();
     mCumDist.assign(count + 1, 0.0f);
     mMapKey = (count > 0) ? static_cast<const void*>(gTrackPaths[pathIndex]) : nullptr;
     mMapPathIndex = pathIndex;
@@ -287,13 +295,31 @@ void DriveAssist::RebuildCurveMap(int pathIndex, int count) {
         }
     }
     closeRun();
+
+    mAnnounced.assign(mCurves.size(), false); // none spoken yet for this map
+}
+
+// Spoken call for one curve: <severity prefix> + <direction> + optional " long".
+std::string DriveAssist::CurvePhrase(const Curve& c) const {
+    std::string s;
+    switch (c.severity) {
+        case Severity::Hairpin: s = TURN_PREFIX_HAIRPIN; break;
+        case Severity::Hard:    s = TURN_PREFIX_HARD; break;
+        case Severity::Easy:    s = TURN_PREFIX_EASY; break;
+        case Severity::Normal:  break;
+    }
+    s += c.right ? TURN_RIGHT : TURN_LEFT;
+    if (c.isLong) {
+        s += TURN_SUFFIX_LONG;
+    }
+    return s;
 }
 
 void DriveAssist::Reset() {
     Accessibility_SetKartAudioPan(0.0f);
     AudioCueService::Instance().SetEdgeTone(false, 0.0f, 0.0f);
     mActiveCurve = -1;
-    mAnnouncedCurve = -1;
+    std::fill(mAnnounced.begin(), mAnnounced.end(), false);
     mLastLap = -1;
     mApproachBeeps = 0;
     mCurvePhase = 0;
@@ -391,7 +417,7 @@ void DriveAssist::Tick(ScreenReaderService& reader) {
         const int lap = player->lapCount;
         if (lap != mLastLap) {
             mLastLap = lap;
-            mAnnouncedCurve = -1;
+            std::fill(mAnnounced.begin(), mAnnounced.end(), false);
         }
         // New active curve: reset its approach/traversal progress.
         if (active != mActiveCurve) {
@@ -400,32 +426,44 @@ void DriveAssist::Tick(ScreenReaderService& reader) {
             mCurvePhase = 0;
         }
 
-        if (active < 0) {
-            mAnnouncedCurve = -1; // on an open stretch: ready for the next curve
-        } else {
+        if (active >= 0) {
             const Curve& cv = mCurves[active];
             const float dEntry = ArcForward(nearest, cv.entry);
+            // A "chain follower" is a curve linked to the one before it (no straight between). The
+            // series was already announced and the approach already counted down at its FIRST
+            // curve, so a follower gets only its own in-curve beeps - no fresh approach countdown.
+            const bool chainFollower =
+                active > 0 && ArcForward(mCurves[active - 1].exit, cv.entry) <= kChainGapPts * mAvgSpacing;
 
-            // 1. Speak the graded call once, when the entry comes within announce distance.
-            //    Composed as <severity prefix> + <direction> + optional " long".
-            if (active != mAnnouncedCurve && dEntry <= kAnnouncePts * mAvgSpacing) {
-                std::string phrase;
-                switch (cv.severity) {
-                    case Severity::Hairpin: phrase = TURN_PREFIX_HAIRPIN; break;
-                    case Severity::Hard:    phrase = TURN_PREFIX_HARD; break;
-                    case Severity::Easy:    phrase = TURN_PREFIX_EASY; break;
-                    case Severity::Normal:  break;
-                }
-                phrase += cv.right ? TURN_RIGHT : TURN_LEFT;
-                if (cv.isLong) {
-                    phrase += TURN_SUFFIX_LONG;
+            // 1. Speak the graded call once (per lap), when the entry comes within announce
+            //    distance. Back-to-back curves with no straight between them are chained into one
+            //    call to anticipate the series, e.g. "hard left then easy right".
+            if (active < static_cast<int>(mAnnounced.size()) && !mAnnounced[active] &&
+                dEntry <= kAnnouncePts * mAvgSpacing) {
+                std::string phrase = CurvePhrase(cv);
+                mAnnounced[active] = true;
+                int last = active;
+                for (int n = 1; n < kMaxChain; ++n) {
+                    const int j = last + 1;
+                    if (j >= static_cast<int>(mCurves.size())) {
+                        break; // don't chain across the start/finish line
+                    }
+                    // Linked only if the gap to the next curve is too short to be a real straight.
+                    if (ArcForward(mCurves[last].exit, mCurves[j].entry) > kChainGapPts * mAvgSpacing) {
+                        break;
+                    }
+                    phrase += TURN_CHAIN;
+                    phrase += CurvePhrase(mCurves[j]);
+                    mAnnounced[j] = true;
+                    last = j;
                 }
                 reader.Speak(phrase, true);
-                mAnnouncedCurve = active;
             }
 
-            // 2. Approach beeps: up to three, rising, as the entry nears.
-            if (mApproachBeeps < 3 && dEntry > 0.0f && dEntry <= kApproachPts[mApproachBeeps] * mAvgSpacing) {
+            // 2. Approach beeps: up to three, rising, as the entry nears - but only for the first
+            //    curve of a series; a chain follower gets only its in-curve beeps.
+            if (!chainFollower && mApproachBeeps < 3 && dEntry > 0.0f &&
+                dEntry <= kApproachPts[mApproachBeeps] * mAvgSpacing) {
                 AudioCueService::Instance().PlayBeep(CueBeep::Approach, kApproachPitch[mApproachBeeps]);
                 mApproachBeeps++;
             }
