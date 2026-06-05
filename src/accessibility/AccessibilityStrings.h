@@ -78,10 +78,18 @@ inline constexpr const char* RACE_FINISH_PREFIX = "You finished ";
 inline constexpr const char* RACE_OFF_ROAD = "Off road";
 inline constexpr const char* RACE_ON_ROAD = "On road";
 
-// Drive assist curve announcements.
+// Drive assist curve announcements. The spoken call is composed as
+// <severity prefix> + <direction> + <optional "long">, e.g. "Right", "Hard left",
+// "Hairpin right", "Easy left long" - a compact rally-style pacenote graded from the
+// curve's geometry (radius vs track width and total heading change).
 inline constexpr const char* TURN_LEFT = "Left";
 inline constexpr const char* TURN_RIGHT = "Right";
-inline constexpr const char* TURN_HARD_LEFT = "Hard left";
-inline constexpr const char* TURN_HARD_RIGHT = "Hard right";
+// Severity prefixes (prepended to the direction). Hairpin = tightest (near U-turn),
+// Hard = tight/closed, Easy = open/gentle; a normal curve has no prefix.
+inline constexpr const char* TURN_PREFIX_HAIRPIN = "Hairpin ";
+inline constexpr const char* TURN_PREFIX_HARD = "Hard ";
+inline constexpr const char* TURN_PREFIX_EASY = "Easy ";
+// Appended for a sustained (long) curve.
+inline constexpr const char* TURN_SUFFIX_LONG = " long";
 
 } // namespace AccessibilityStrings

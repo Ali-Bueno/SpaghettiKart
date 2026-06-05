@@ -481,16 +481,12 @@ void DrawAccessibilityMenu() {
                 "Audio guidance for blind driving: spoken curve warnings, approach/progress beeps, "
                 "an edge-proximity beep, and the game's engine audio panned as a directional reference."));
         UIWidgets::CVarSliderInt(
-            "Drive Assist: Pan Strength", "gAccessibility.DriveAssistPanStrength",
-            UIWidgets::IntSliderOptions().Min(0).Max(100).Step(5).DefaultValue(60).Format("%d%%").Tooltip(
-                "How far the engine audio leans left/right. Lower is gentler and easier to keep centered; "
-                "higher gives a stronger directional signal. Adjust live while driving to find your comfort."));
-        UIWidgets::CVarSliderInt(
             "Drive Assist: Anticipation", "gAccessibility.DriveAssistLookAhead",
-            UIWidgets::IntSliderOptions().Min(1).Max(20).Step(1).DefaultValue(9).Format("%d").Tooltip(
-                "How far ahead the steering guide looks, in track points. Lower reacts to drift sooner and "
-                "centers more tightly; higher is smoother and leans into curves earlier. If the sound feels "
-                "twitchy, raise it; if you drift off before it reacts, lower it."));
+            UIWidgets::IntSliderOptions().Min(1).Max(20).Step(1).DefaultValue(12).Format("%d").Tooltip(
+                "How far ahead the steering guide looks, in track points (anchored to real distance so it "
+                "feels the same on every track). Lower reacts to drift sooner; higher is smoother and leans "
+                "into curves earlier. If the sound feels twitchy, raise it; if you drift off before it "
+                "reacts, lower it."));
         UIWidgets::CVarCheckbox(
             "Drive Assist: Invert Sides", "gAccessibility.DriveAssistInvert",
             UIWidgets::CheckboxOptions().DefaultValue(false).Tooltip(

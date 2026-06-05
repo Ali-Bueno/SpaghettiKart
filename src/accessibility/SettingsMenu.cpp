@@ -146,9 +146,6 @@ const Option kAccessibility[] = {
       .idefault = CVAR_ACCESS_OFFROAD_CUE_DEFAULT },
     { .label = "Blind drive assist", .kind = OptKind::Toggle, .cvar = CVAR_ACCESS_DRIVE_ASSIST,
       .idefault = CVAR_ACCESS_DRIVE_ASSIST_DEFAULT },
-    { .label = "Pan strength", .kind = OptKind::IntSlider, .cvar = CVAR_ACCESS_DRIVE_PAN_STRENGTH,
-      .idefault = CVAR_ACCESS_DRIVE_PAN_STRENGTH_DEFAULT, .fmin = 0, .fmax = 100, .fstep = 5,
-      .asPercent = true },
     { .label = "Anticipation", .kind = OptKind::IntSlider, .cvar = CVAR_ACCESS_DRIVE_LOOKAHEAD,
       .idefault = CVAR_ACCESS_DRIVE_LOOKAHEAD_DEFAULT, .fmin = 1, .fmax = 20, .fstep = 1 },
     { .label = "Invert sides", .kind = OptKind::Toggle, .cvar = CVAR_ACCESS_DRIVE_INVERT,
@@ -166,11 +163,12 @@ const Option kAccessibility[] = {
     // Help entries: focus to hear the name, press A to hear how that cue works.
     { .label = "Help: steering guide", .kind = OptKind::Info,
       .help = "The engine sound leans left or right toward the way you should steer to follow the racing "
-              "line. Drive toward the sound. Pan strength sets how strongly it leans, anticipation sets how "
-              "far ahead it looks, and invert sides flips it if it feels backwards." },
+              "line. Drive toward the sound. Anticipation sets how far ahead it looks, and invert sides "
+              "flips it if it feels backwards." },
     { .label = "Help: curve calls", .kind = OptKind::Info,
-      .help = "Before a curve, a voice announces left, right, hard left or hard right, so you can prepare "
-              "to turn." },
+      .help = "Before each curve a voice calls its direction and how tight it is: easy, normal, hard, or "
+              "hairpin, plus long for a sustained curve. For example easy left, right, hard right, or "
+              "hairpin left. Each curve is called once per lap so you can prepare to turn." },
     { .label = "Help: approach beeps", .kind = OptKind::Info,
       .help = "As you near a curve, rising beeps count down to it. Press Z to hear an example.",
       .cueExample = kCueApproach },
