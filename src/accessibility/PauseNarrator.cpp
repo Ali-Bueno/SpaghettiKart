@@ -38,6 +38,12 @@ namespace {
 constexpr int32_t kMenuItemPause = 0xC7;        // MENU_ITEM_PAUSE
 constexpr int32_t kMenuItemEndCourse = 0xBD;    // MENU_ITEM_END_COURSE_OPTION
 constexpr int32_t kMenuItemTimeTrialEnd = 0xBA; // MENU_ITEM_TYPE_0BA (time trial finish menu)
+constexpr int32_t kMenuItemGpResults = 0xAC;    // MENU_ITEM_TYPE_0AC (GP finished: Retry / Quit)
+
+// The Grand Prix "finished" menu (0xAC, func_800ACA14) shows two options drawn from
+// gTextPauseButton (Retry / Quit). The cursor lives in .state: 0x0B = Retry, 0x0C = Quit.
+constexpr int kGpResultRetry = 0x0B;
+constexpr int kGpResultQuit = 0x0C;
 
 // Both finish menus share the same option layout (gTextPauseButton[idx + 1] = Retry,
 // Course change, Driver change, Quit, Replay, Save ghost) but the cursor's base state
@@ -48,6 +54,19 @@ constexpr int kEndCourseMin = 0x0B;
 constexpr int kEndCourseMax = 0x10;
 constexpr int kTimeTrialEndMin = 0x05;
 constexpr int kTimeTrialEndMax = 0x0A;
+
+// Save-ghost sub-states of the time-trial finish menu (0xBA), reached after choosing
+// "Save ghost": two save slots (the cursor lives in .state), then a Yes/No overwrite
+// confirmation. These were unread, so the player couldn't pick a slot.
+constexpr int kGhostSlot1 = 0x11;
+constexpr int kGhostSlot2 = 0x12;
+constexpr int kGhostOverwriteNo = 0x14;
+constexpr int kGhostOverwriteYes = 0x15;
+
+inline bool IsGhostSaveState(int state) {
+    return state == kGhostSlot1 || state == kGhostSlot2 || state == kGhostOverwriteNo ||
+           state == kGhostOverwriteYes;
+}
 
 // gTextPauseButton indices (TEXT_MENU_ID in menu_items.h), used to index
 // PAUSE_OPTIONS[].
@@ -130,6 +149,16 @@ std::string PauseNarrator::EndCourseOption() const {
             return PAUSE_OPTIONS[optionId];
         }
     }
+    // Save-ghost sub-menu (same 0xBA item): the save-slot picker and overwrite confirmation.
+    if (tt != nullptr) {
+        switch (tt->state) {
+            case kGhostSlot1: return std::string(GHOST_SLOT_PREFIX) + "1";
+            case kGhostSlot2: return std::string(GHOST_SLOT_PREFIX) + "2";
+            case kGhostOverwriteNo: return GHOST_OVERWRITE_NO;
+            case kGhostOverwriteYes: return GHOST_OVERWRITE_YES;
+            default: break;
+        }
+    }
     // End-course option menu (0xBD): render_menu_item_end_course_option draws
     // gTextPauseButton[idx + 1] for idx = state - 0x0B.
     const AccessMenuItem* ec = find_menu_items(kMenuItemEndCourse);
@@ -137,6 +166,16 @@ std::string PauseNarrator::EndCourseOption() const {
         const int optionId = (ec->state - kEndCourseMin) + 1;
         if (optionId >= 0 && optionId < 7) {
             return PAUSE_OPTIONS[optionId];
+        }
+    }
+    // Grand Prix finished menu (0xAC): Retry / Quit.
+    const AccessMenuItem* gp = find_menu_items(kMenuItemGpResults);
+    if (gp != nullptr) {
+        if (gp->state == kGpResultRetry) {
+            return PAUSE_OPTIONS[OPT_RETRY];
+        }
+        if (gp->state == kGpResultQuit) {
+            return PAUSE_OPTIONS[OPT_QUIT];
         }
     }
     return "";
@@ -147,11 +186,16 @@ bool PauseNarrator::MenuActive() const {
         return true;
     }
     const AccessMenuItem* tt = find_menu_items(kMenuItemTimeTrialEnd);
-    if (tt != nullptr && tt->state >= kTimeTrialEndMin && tt->state <= kTimeTrialEndMax) {
+    if (tt != nullptr &&
+        ((tt->state >= kTimeTrialEndMin && tt->state <= kTimeTrialEndMax) || IsGhostSaveState(tt->state))) {
         return true;
     }
     const AccessMenuItem* ec = find_menu_items(kMenuItemEndCourse);
-    return ec != nullptr && ec->state >= kEndCourseMin && ec->state <= kEndCourseMax;
+    if (ec != nullptr && ec->state >= kEndCourseMin && ec->state <= kEndCourseMax) {
+        return true;
+    }
+    const AccessMenuItem* gp = find_menu_items(kMenuItemGpResults);
+    return gp != nullptr && (gp->state == kGpResultRetry || gp->state == kGpResultQuit);
 }
 
 std::string PauseNarrator::CurrentOption(int* kind) const {

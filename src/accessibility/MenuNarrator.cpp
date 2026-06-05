@@ -151,11 +151,24 @@ std::string MenuNarrator::BuildItemAnnouncement(int screen) const {
             if (sub == SUB_MAP_CUP) {
                 // Cup browsing updates the World cup index, not gCupSelection.
                 const int cup = static_cast<int>(GetCupIndex());
+                std::string name;
                 if (cup >= 0 && cup < 5) {
-                    return CUPS[cup];
+                    name = CUPS[cup];
+                } else {
+                    const char* n = GetCupName();
+                    name = (n != nullptr) ? n : "";
                 }
-                const char* name = GetCupName();
-                return name != nullptr ? std::string(name) : "";
+                // In Grand Prix, say which trophy this cup has already been won with at the
+                // selected engine class, so the player knows their progress (the screen shows
+                // a trophy icon a sighted player can see).
+                if (!name.empty() && gModeSelection == GRAND_PRIX && cup >= 0 && cup < 4) {
+                    const int trophy = static_cast<int>(func_800B54C0(cup, gCCSelection));
+                    if (trophy >= 1 && trophy <= 3) {
+                        name += ", ";
+                        name += TROPHIES[trophy];
+                    }
+                }
+                return name;
             }
             if (sub == SUB_MAP_COURSE || sub == SUB_MAP_BATTLE_COURSE) {
                 // Resolve the highlighted course from the LIVE World cup + cursor, exactly

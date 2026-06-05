@@ -18,6 +18,11 @@ extern "C" {
 extern "C" {
 extern int32_t gModeSelection;
 extern Player* gPlayerOne;
+// Grand Prix overall standings: accumulated points per character id (0-7) and the players'
+// chosen characters (index 0 = player one). We derive the placement from the points rather
+// than the game's sorted-rank array, which isn't reliably populated when we read it.
+extern int8_t gGPPointsByCharacterId[];
+extern int8_t gCharacterSelections[];
 
 // Minimal mirror of MenuItem (menu_items.h): we only read .state. Reading it via
 // this leading-fields struct is safe because linkage is by symbol name.
@@ -33,8 +38,7 @@ using namespace AccessibilityStrings;
 namespace {
 
 // MenuItem type ids (menu_items.h).
-constexpr int32_t kMenuItemVsBattle = 0xB0;  // MENU_ITEM_TYPE_0B0 (VS/Battle ranking + menu)
-constexpr int32_t kMenuItemGpResults = 0xAA; // MENU_ITEM_TYPE_0AA (GP race results)
+constexpr int32_t kMenuItemVsBattle = 0xB0; // MENU_ITEM_TYPE_0B0 (VS/Battle ranking + menu)
 
 // The Versus/Battle menu cursor lives in MenuItem.state over this inclusive range
 // (4 options); below it the screen is still animating in.
@@ -92,25 +96,27 @@ void PostRaceNarrator::Tick(ScreenReaderService& reader) {
         return;
     }
 
-    // --- Grand Prix: announce the finishing position once the results show -----
+    // --- Grand Prix: announce the player's FINAL cup placement during the podium ---
+    // The cup is decided on total points, so the player's overall placement is their
+    // character's index in the points-sorted standings - not the last race's rank.
+    // Announced once per ending (the podium auto-plays; there is no menu to navigate).
     if (mode == GRAND_PRIX) {
-        const AccessMenuItem* results = find_menu_items(kMenuItemGpResults);
-        // state >= 2 means the results have animated in and are on screen.
-        if (results == nullptr || results->state < 2) {
-            return;
+        if (mLastGpRank != -1) {
+            return; // already announced this ending
         }
-        const Player* player = gPlayerOne;
-        if (player == nullptr) {
-            return;
+        // Placement = how many characters scored more points than the player (0-based).
+        const int playerChar = gCharacterSelections[0];
+        const int playerPts = gGPPointsByCharacterId[playerChar];
+        int place = 0;
+        for (int c = 0; c < 8; ++c) {
+            if (gGPPointsByCharacterId[c] > playerPts) {
+                place++;
+            }
         }
-        const int rank = player->currentRank; // 0-based: 0 = 1st
-        if (rank == mLastGpRank) {
-            return;
-        }
-        mLastGpRank = rank;
-        mLastKind = 2;
-        if (rank >= 0 && rank < 8) {
-            reader.Speak(std::string(RACE_OVER) + ". " + POSITIONS[rank], true);
+        if (place >= 0 && place < 8) {
+            mLastGpRank = place;
+            mLastKind = 2;
+            reader.Speak(std::string(RACE_FINISH_PREFIX) + POSITIONS[place], true);
         }
     }
 }

@@ -18,10 +18,15 @@ class RaceNarrator {
     void Tick(ScreenReaderService& reader);
 
   private:
+    // Grand Prix only: read the overall points table once, when the post-race point
+    // tally has finished. Re-arms when that screen goes away (so each race reads it).
+    void AnnounceStandings(ScreenReaderService& reader);
+
     int mLastRank = -1;
     int mLastLap = -1;
     int mLastItem = -1;
     int mLastRaceState = -1;
     bool mWasOffRoad = false;
     bool mFinishAnnounced = false;
+    bool mStandingsAnnounced = false;
 };

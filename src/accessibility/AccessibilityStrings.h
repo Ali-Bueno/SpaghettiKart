@@ -58,6 +58,21 @@ inline constexpr const char* ITEM_NAMES[16] = {
 inline constexpr const char* POSITIONS[8] = { "1st", "2nd", "3rd", "4th",
                                               "5th", "6th", "7th", "8th" };
 
+// Grand Prix overall standings (the points table read after each race).
+inline constexpr const char* STANDINGS_PREFIX = "Points. ";
+inline constexpr const char* STANDINGS_SELF = "You"; // the player's own row
+
+// Cup completion trophies, indexed by the save value (0 none, 1 bronze, 2 silver,
+// 3 gold). Index 0 is empty (cup not won yet).
+inline constexpr const char* TROPHIES[4] = { "", "bronze trophy", "silver trophy", "gold trophy" };
+
+// Save-ghost sub-menu (after a Time Trial): the save-slot picker and the overwrite
+// confirmation. These are sub-states of the same time-trial finish menu (0xBA), which
+// otherwise went unread, so the player couldn't tell which slot was highlighted.
+inline constexpr const char* GHOST_SLOT_PREFIX = "Save ghost, slot ";
+inline constexpr const char* GHOST_OVERWRITE_NO = "Overwrite ghost? No";
+inline constexpr const char* GHOST_OVERWRITE_YES = "Overwrite ghost? Yes";
+
 // Pause menu.
 inline constexpr const char* PAUSE_MENU = "Paused";
 // End-of-course / replay options menu (after a Time Trial, and replay pause).

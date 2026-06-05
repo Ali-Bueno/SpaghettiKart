@@ -56,4 +56,12 @@ extern const int16_t gCupCourseOrder[5][4];
 // --- Options / shared sub-menu cursor ---
 extern int8_t gSubMenuSelection;
 extern uint8_t gSoundMode; // SOUND_STEREO..SOUND_MONO
+
+// --- Grand Prix mode / records ---
+// Active game mode (GRAND_PRIX=0, TIME_TRIALS=1, VERSUS=2, BATTLE=3).
+extern int32_t gModeSelection;
+// Engine class (CC_50=0, CC_100=1, CC_150=2, CC_EXTRA=3); selects which trophy record.
+extern int32_t gCCSelection;
+// Grand Prix trophy earned for (cup, cc): 0 none, 1 bronze, 2 silver, 3 gold. (save.c)
+uint8_t func_800B54C0(int32_t cup, int32_t cc_mode);
 }

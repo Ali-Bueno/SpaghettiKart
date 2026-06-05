@@ -19,6 +19,20 @@ extern Player* gPlayerOne;
 extern int32_t gRaceState;
 // Active game mode (GRAND_PRIX=0, TIME_TRIALS=1, VERSUS=2, BATTLE=3).
 extern int32_t gModeSelection;
+
+// Grand Prix standings: accumulated points per character id (0-7), and the players'
+// chosen characters (index 0 = player one). We sort by points ourselves rather than rely
+// on the game's gCharacterIdByGPOverallRank, which isn't reliably sorted while the screen
+// is up (it read back as all-Mario in testing).
+extern int8_t gGPPointsByCharacterId[];
+extern int8_t gCharacterSelections[];
+
+// Minimal mirror of MenuItem (menu_items.h): we only read .state. Linkage is by symbol.
+typedef struct {
+    int32_t type;
+    int32_t state;
+} AccessMenuItem;
+extern AccessMenuItem* find_menu_items(int32_t type);
 }
 
 using namespace AccessibilityStrings;
@@ -49,6 +63,52 @@ void RaceNarrator::Reset() {
     mLastRaceState = -1;
     mWasOffRoad = false;
     mFinishAnnounced = false;
+    mStandingsAnnounced = false;
+}
+
+// Grand Prix only: after each race the game shows a point-tally screen (MenuItem 0xAB).
+// Its states 3-6 add this race's points into gGPPointsByCharacterId; by state 7 the totals
+// are final and the screen waits, so that is when we read the whole standings table once.
+void RaceNarrator::AnnounceStandings(ScreenReaderService& reader) {
+    if (gModeSelection != GRAND_PRIX) {
+        mStandingsAnnounced = false;
+        return;
+    }
+    const AccessMenuItem* tally = find_menu_items(0xAB);
+    if (tally == nullptr) {
+        mStandingsAnnounced = false; // screen gone: re-arm for the next race
+        return;
+    }
+    if (tally->state < 7 || mStandingsAnnounced) {
+        return; // still tallying, or already read this race
+    }
+    mStandingsAnnounced = true;
+
+    // Order the eight characters by points, highest first (simple selection sort; ties keep
+    // the lower character id, which reads in a stable order).
+    int order[8] = { 0, 1, 2, 3, 4, 5, 6, 7 };
+    for (int i = 0; i < 8; ++i) {
+        for (int j = i + 1; j < 8; ++j) {
+            if (gGPPointsByCharacterId[order[j]] > gGPPointsByCharacterId[order[i]]) {
+                const int tmp = order[i];
+                order[i] = order[j];
+                order[j] = tmp;
+            }
+        }
+    }
+
+    const int playerChar = gCharacterSelections[0];
+    std::string msg = STANDINGS_PREFIX;
+    for (int rank = 0; rank < 8; ++rank) {
+        const int chr = order[rank];
+        if (rank > 0) {
+            msg += ", ";
+        }
+        msg += (chr == playerChar) ? STANDINGS_SELF : CHARACTERS[chr];
+        msg += " ";
+        msg += std::to_string(static_cast<int>(gGPPointsByCharacterId[chr]));
+    }
+    reader.Speak(msg, true);
 }
 
 void RaceNarrator::Tick(ScreenReaderService& reader) {
@@ -56,6 +116,10 @@ void RaceNarrator::Tick(ScreenReaderService& reader) {
     if (player == nullptr) {
         return;
     }
+
+    // Grand Prix overall points table, read once after the post-race tally finishes. This
+    // runs regardless of race state (the tally screen appears after the finish line).
+    AnnounceStandings(reader);
 
     // Race-state transitions: the start signal and the finish.
     const int raceState = gRaceState;
