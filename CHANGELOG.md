@@ -1,5 +1,32 @@
 # Changelog — Super Blind Kart
 
+## Changes on 05/06/2026
+
+### New
+- **Spinning shell cue.** A looping sound (with a Doppler "it passed you" drop) plays while a
+  shell — green, red or blue — is flying across the track, whether you or a rival threw it, so
+  you can react to an incoming threat. Toggle and demo in the accessibility menu.
+- **Banana hazard cue.** A sound plays for a banana lying on the track, panned toward it (with
+  the same Doppler), so you can steer clear. Toggle, range slider and demo in the menu.
+- **Graded curve calls.** Curves are now announced with how tight they are — Easy, Normal, Hard
+  or Hairpin, plus "Long" for long curves — and a run of curves with no straight between them is
+  announced together (for example "Hard left then easy right").
+- **More post-race narration.** Your final Grand Prix placement, the full points standings after
+  each race, the trophy already won for each cup on the cup-select screen, the Retry/Quit menu
+  when you finish low, and the Time-Trial save-ghost menu are all read now.
+- **More sound controls.** Separate volume, tone and loop-speed sliders for the driving cues, in
+  the accessibility menu.
+
+### Improvements
+- **Reworked curve detection** so curve calls are more accurate and consistent from lap to lap.
+- **Softer, clearer audio cues**, with a gentler track-limit tone and distinct sounds for the
+  approach, curve and edge cues.
+
+### Fixes
+- **JAWS now works.** The mod was picking a screen reader that was not running (NVDA) ahead of
+  the one actually in use, which left JAWS users with no speech at all. It now always uses the
+  screen reader that is actually running.
+
 ## Changes on 04/06/2026
 
 ### New
