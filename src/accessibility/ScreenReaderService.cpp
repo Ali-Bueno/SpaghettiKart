@@ -60,23 +60,41 @@ bool ScreenReaderService::Initialize() {
                     prism_registry_priority(mContext, id));
     }
 
-    // First try PRISM's auto-pick (the active screen reader for this platform).
-    if (TryUseBackend(prism_registry_acquire_best(mContext))) {
-        return true;
-    }
-
-    // The best pick was unusable (this is what happened with JAWS for one user). Fall
-    // back to trying every registered backend in turn so a working one - the user's
-    // actual screen reader, or a system TTS like SAPI - is still found.
-    SPDLOG_WARN("[Accessibility] Best backend unusable; trying each registered backend.");
+    // Select a backend explicitly instead of relying on prism_registry_acquire_best().
+    //
+    // acquire_best() returns the first backend (in descending priority) whose
+    // initialize() succeeds - it never consults get_features(). PRISM v0.16.5 ships an
+    // NVDA backend (priority 103, the highest on Windows) whose initialize() wrongly
+    // succeeds even when NVDA is not running (upstream Issue 49, fixed after v0.16.5 but
+    // not yet in any release). That non-functional NVDA then shadows the screen reader
+    // that IS running - e.g. JAWS at priority 100 - so acquire_best() reports "NVDA" and
+    // every Speak() call is silently dropped: a JAWS user gets no speech at all.
+    //
+    // get_features() is reliable (the bug is only in initialize()), so pick the
+    // highest-priority backend that actually reports IS_SUPPORTED_AT_RUNTIME. The
+    // registry is already sorted by descending priority, so the first live match wins.
+    // This also selects the system TTS (OneCore/SAPI report supported when present) when
+    // no screen reader is running.
     for (size_t i = 0; i < count; ++i) {
         const PrismBackendId id = prism_registry_id_at(mContext, i);
+        // A throwaway instance just to query runtime availability; get_features() does
+        // its own liveness probe and does not need the backend initialized.
+        PrismBackend* probe = prism_registry_create(mContext, id);
+        if (probe == nullptr) {
+            continue;
+        }
+        const bool supportedAtRuntime =
+            (prism_backend_get_features(probe) & PRISM_BACKEND_IS_SUPPORTED_AT_RUNTIME) != 0;
+        prism_backend_free(probe);
+        if (!supportedAtRuntime) {
+            continue;
+        }
         if (TryUseBackend(prism_registry_acquire(mContext, id))) {
             return true;
         }
     }
 
-    SPDLOG_WARN("[Accessibility] No usable screen reader backend was found.");
+    SPDLOG_WARN("[Accessibility] No screen reader reported itself available at runtime.");
     return false;
 }
 
