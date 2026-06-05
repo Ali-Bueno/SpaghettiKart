@@ -28,8 +28,11 @@ class AccessibilityManager {
 
     bool Enabled() const;
     void EnsureScreenReaderInitialized();
+    // Seed the recommended starting volumes / anticipation once on first run.
+    void ApplyRecommendedDefaultsOnce();
 
     bool mScreenReaderInitTried = false;
+    bool mDefaultsChecked = false;
     MenuNarrator mMenuNarrator;
     PauseNarrator mPauseNarrator;
     PostRaceNarrator mPostRaceNarrator;

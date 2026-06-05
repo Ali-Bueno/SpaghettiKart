@@ -158,10 +158,19 @@ std::string MenuNarrator::BuildItemAnnouncement(int screen) const {
                 return name != nullptr ? std::string(name) : "";
             }
             if (sub == SUB_MAP_COURSE || sub == SUB_MAP_BATTLE_COURSE) {
-                // gCurrentCourseId is the live resolved track id.
-                const int track = gCurrentCourseId;
-                if (track >= 0 && track < 20) {
-                    return TRACKS[track];
+                // Resolve the highlighted course from the LIVE World cup + cursor, exactly
+                // like the game's own course-select screen does
+                // (gCupCourseOrder[GetCupIndex()][GetCupCursorPosition()]). gCurrentCourseId
+                // is derived from the legacy gCupSelection / gCourseIndexInCup pair, which is
+                // not refreshed when you switch cups via the World browser - so after changing
+                // cups it reports stale/wrong track names until you return to the main menu.
+                const int cup = static_cast<int>(GetCupIndex());
+                const int pos = static_cast<int>(GetCupCursorPosition());
+                if (cup >= 0 && cup < 5 && pos >= 0 && pos < 4) {
+                    const int track = gCupCourseOrder[cup][pos];
+                    if (track >= 0 && track < 20) {
+                        return TRACKS[track];
+                    }
                 }
                 return "";
             }

@@ -72,6 +72,9 @@ inline constexpr const char* PAUSE_OPTIONS[7] = {
 // Race events.
 inline constexpr const char* RACE_GO = "Go!";
 inline constexpr const char* RACE_OVER = "Race finished";
+// Spoken when the player crosses the finish line, followed by a POSITIONS[] entry
+// (e.g. "You finished 3rd").
+inline constexpr const char* RACE_FINISH_PREFIX = "You finished ";
 inline constexpr const char* RACE_OFF_ROAD = "Off road";
 inline constexpr const char* RACE_ON_ROAD = "On road";
 

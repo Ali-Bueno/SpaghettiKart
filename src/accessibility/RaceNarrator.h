@@ -23,4 +23,5 @@ class RaceNarrator {
     int mLastItem = -1;
     int mLastRaceState = -1;
     bool mWasOffRoad = false;
+    bool mFinishAnnounced = false;
 };

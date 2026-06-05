@@ -10,6 +10,7 @@
 // Screen and game-state constants (RACING, MAIN_MENU, ...) live in <defines.h>,
 // which is C++-safe, and are included directly where needed.
 
+#include <cstddef>
 #include <cstdint>
 
 extern "C" {
@@ -44,6 +45,13 @@ extern int16_t gCurrentCourseId;
 // Live cup index / name while browsing cups (gCupSelection is not updated live).
 uint32_t GetCupIndex(void);
 const char* GetCupName(void);
+// Live cursor position (0-based) within the current World cup. Together with
+// GetCupIndex() and gCupCourseOrder this resolves the highlighted course the same
+// way the game's own course-select screen does (port/Game.cpp).
+size_t GetCupCursorPosition(void);
+// Per-cup course id table, rows: mushroom, flower, star, special, battle; columns:
+// the four courses in that cup. Indexes into the spoken TRACKS[] names. (menus.c)
+extern const int16_t gCupCourseOrder[5][4];
 
 // --- Options / shared sub-menu cursor ---
 extern int8_t gSubMenuSelection;

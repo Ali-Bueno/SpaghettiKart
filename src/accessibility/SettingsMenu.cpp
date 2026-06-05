@@ -186,9 +186,9 @@ const Option kAccessibility[] = {
 const Option kSound[] = {
     { .label = "Master volume", .kind = OptKind::FloatSlider, .cvar = "gGameMasterVolume",
       .fdefault = 1.0f, .fmin = 0.0f, .fmax = 1.0f, .fstep = 0.05f, .asPercent = true },
-    { .label = "Music volume", .kind = OptKind::FloatSlider, .cvar = "gMainMusicVolume",
-      .fdefault = 1.0f, .fmin = 0.0f, .fmax = 1.0f, .fstep = 0.05f, .asPercent = true,
-      .onChange = ApplyMusicVolume },
+    { .label = "Music volume", .kind = OptKind::FloatSlider, .cvar = CVAR_MAIN_MUSIC_VOLUME,
+      .fdefault = CVAR_ACCESS_RECOMMENDED_MUSIC_VOLUME, .fmin = 0.0f, .fmax = 1.0f, .fstep = 0.05f,
+      .asPercent = true, .onChange = ApplyMusicVolume },
     { .label = "Sound effects volume", .kind = OptKind::FloatSlider, .cvar = "gSFXMusicVolume",
       .fdefault = 1.0f, .fmin = 0.0f, .fmax = 1.0f, .fstep = 0.05f, .asPercent = true,
       .onChange = ApplySfxVolume },
@@ -197,8 +197,9 @@ const Option kSound[] = {
       .onChange = ApplyEnvVolume },
     // Lower the rival karts so a blind player can pick out their own. Applied each
     // frame by AccessibilityManager from this CVar (no onChange needed).
-    { .label = "Rival kart volume", .kind = OptKind::FloatSlider, .cvar = "gAccessibility.RivalKartVolume",
-      .fdefault = 1.0f, .fmin = 0.0f, .fmax = 1.0f, .fstep = 0.05f, .asPercent = true },
+    { .label = "Rival kart volume", .kind = OptKind::FloatSlider, .cvar = CVAR_ACCESS_RIVAL_VOLUME,
+      .fdefault = CVAR_ACCESS_RECOMMENDED_RIVAL_VOLUME, .fmin = 0.0f, .fmax = 1.0f, .fstep = 0.05f,
+      .asPercent = true },
     { .label = "Sound mode", .kind = OptKind::Enum, .cvar = nullptr, .idefault = 0,
       .labels = kSoundModeLabels, .labelCount = 4, .getInt = GetSoundMode, .setInt = SetSoundMode },
 };

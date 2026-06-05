@@ -17,6 +17,8 @@ extern "C" {
 extern "C" {
 extern Player* gPlayerOne;
 extern int32_t gRaceState;
+// Active game mode (GRAND_PRIX=0, TIME_TRIALS=1, VERSUS=2, BATTLE=3).
+extern int32_t gModeSelection;
 }
 
 using namespace AccessibilityStrings;
@@ -46,6 +48,7 @@ void RaceNarrator::Reset() {
     mLastItem = -1;
     mLastRaceState = -1;
     mWasOffRoad = false;
+    mFinishAnnounced = false;
 }
 
 void RaceNarrator::Tick(ScreenReaderService& reader) {
@@ -54,13 +57,36 @@ void RaceNarrator::Tick(ScreenReaderService& reader) {
         return;
     }
 
-    // Start signal: announce "Go!" when the race begins.
+    // Race-state transitions: the start signal and the finish.
     const int raceState = gRaceState;
     if (raceState != mLastRaceState) {
         if (mLastRaceState != -1 && raceState == RACE_IN_PROGRESS) {
             reader.Speak(RACE_GO, true);
         }
+        // Finish: crossing the line advances the state to RACE_FINISHED. Announce the
+        // final position once, for the modes where it is meaningful - Grand Prix and
+        // Versus. Time Trials is solo (always 1st) and Battle is balloon-based, so they
+        // are skipped.
+        if (raceState == RACE_FINISHED && !mFinishAnnounced) {
+            mFinishAnnounced = true;
+            const int mode = gModeSelection;
+            if (mode == GRAND_PRIX || mode == VERSUS) {
+                const int rank = player->currentRank; // 0-based: 0 = 1st
+                if (rank >= 0 && rank < 8) {
+                    reader.Speak(std::string(RACE_FINISH_PREFIX) + POSITIONS[rank], true);
+                }
+            }
+        }
         mLastRaceState = raceState;
+    }
+
+    // Stop the live race feedback once the player has crossed the line (the state
+    // advances to RACE_CALCULATE_RANKS / RACE_FINISHED): the kart then auto-drives to
+    // the line and would otherwise trigger spurious position / off-road announcements
+    // on top of the finishing-position call above. The pre-race / live states are left
+    // as-is so the starting position is still announced during the countdown.
+    if (raceState >= RACE_CALCULATE_RANKS) {
+        return;
     }
 
     // Position (currentRank is 0-based: 0 = 1st).

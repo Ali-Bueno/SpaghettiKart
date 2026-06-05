@@ -21,6 +21,15 @@
 // cue stays silent while you are centered; higher = it begins sooner / from further
 // in, lower = it stays silent until you are closer to the edge.
 #define CVAR_ACCESS_EDGE_SENSITIVITY "gAccessibility.EdgeSensitivity"
+// Rival-kart engine volume scale (0..1): lowered by default so a blind player can
+// pick out their own kart over the pack. Applied live in src/audio/external.c.
+#define CVAR_ACCESS_RIVAL_VOLUME "gAccessibility.RivalKartVolume"
+// Port-wide background-music volume (0..1). Not accessibility-namespaced, but seeded
+// to a quieter recommended default below for the same reason.
+#define CVAR_MAIN_MUSIC_VOLUME "gMainMusicVolume"
+// Sentinel: set once the recommended starting defaults below have been seeded, so a
+// fresh install gets them but the player's later changes are never overwritten.
+#define CVAR_ACCESS_DEFAULTS_APPLIED "gAccessibility.DefaultsApplied"
 
 // Default values used both by the logic (CVarGetInteger fallbacks) and the UI
 // checkboxes, so the menu state and behaviour always agree.
@@ -32,6 +41,11 @@
 #define CVAR_ACCESS_DRIVE_ASSIST_DEFAULT 1
 #define CVAR_ACCESS_DRIVE_INVERT_DEFAULT 0
 #define CVAR_ACCESS_DRIVE_PAN_STRENGTH_DEFAULT 60
-#define CVAR_ACCESS_DRIVE_LOOKAHEAD_DEFAULT 9
+#define CVAR_ACCESS_DRIVE_LOOKAHEAD_DEFAULT 12
 #define CVAR_ACCESS_EDGE_CUE_DEFAULT 1
 #define CVAR_ACCESS_EDGE_SENSITIVITY_DEFAULT 50
+
+// Recommended starting volumes (0..1) seeded once on first run. Testers reported they
+// follow the audio cues better with the music and rival karts a little quieter.
+#define CVAR_ACCESS_RECOMMENDED_MUSIC_VOLUME 0.60f
+#define CVAR_ACCESS_RECOMMENDED_RIVAL_VOLUME 0.60f
