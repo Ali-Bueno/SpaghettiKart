@@ -8,6 +8,8 @@
 #include "RaceNarrator.h"
 #include "DriveAssist.h"
 #include "ItemBoxBeacon.h"
+#include "ShellTracker.h"
+#include "BananaBeacon.h"
 
 /**
  * Top-level orchestrator for accessibility features.
@@ -40,6 +42,8 @@ class AccessibilityManager {
     RaceNarrator mRaceNarrator;
     DriveAssist mDriveAssist;
     ItemBoxBeacon mItemBoxBeacon;
+    ShellTracker mShellTracker;
+    BananaBeacon mBananaBeacon;
 };
 
 extern "C" {

@@ -753,14 +753,11 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/mk64.o2r")
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/mk64.o2r" "$<TARGET_FILE_DIR:Spaghettify>/mk64.o2r")
 endif()
 
-# Accessibility audio cues loaded from files at runtime (e.g. the item-box beacon).
-# Kept next to the executable so an in-tree build / release can find them via
-# Ship::Context::LocateFileAcrossAppDirs("sounds/...").
-if(EXISTS "${CMAKE_SOURCE_DIR}/sounds")
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMENT "Copying accessibility sounds next to the executable..."
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/sounds" "$<TARGET_FILE_DIR:Spaghettify>/sounds")
-endif()
+# Accessibility audio cues (item-box beacon, spinning-shell loop, grounded-banana) are
+# packed into spaghetti.o2r and loaded from the archive at runtime (see AudioCueService),
+# NOT shipped as loose files - so players cannot swap them. The pack step lives in the
+# ExtractAssets / GenerateO2R targets below (sounds/ is copied into the o2r tree before
+# torch packs it). spaghetti.o2r is already copied next to the executable above.
 
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
   include(ExternalProject)
@@ -783,6 +780,8 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     COMMAND ${TORCH_EXECUTABLE} header -o baserom.us.z64
     COMMAND ${TORCH_EXECUTABLE} o2r baserom.us.z64 --additional-files meta/mods.toml
+    # Bundle the accessibility cue sounds into the archive (loaded via AudioCueService).
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/sounds" "${CMAKE_SOURCE_DIR}/o2r/sounds"
     COMMAND ${TORCH_EXECUTABLE} pack assets spaghetti.o2r o2r
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/mk64.o2r" "${CMAKE_BINARY_DIR}/mk64.o2r"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/spaghetti.o2r" "${CMAKE_BINARY_DIR}/spaghetti.o2r"
@@ -792,6 +791,8 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
     GenerateO2R
     DEPENDS TorchExternal
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    # Bundle the accessibility cue sounds into the archive (loaded via AudioCueService).
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/sounds" "${CMAKE_SOURCE_DIR}/o2r/sounds"
     COMMAND ${TORCH_EXECUTABLE} pack assets spaghetti.o2r o2r
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/spaghetti.o2r" "${CMAKE_BINARY_DIR}/spaghetti.o2r"
 )

@@ -53,7 +53,9 @@ constexpr float kVolumeFar = 0.40f;  // at the edge of the detection range
 // behind; the pitch is left at 1.0 while ahead and lowered only as it falls behind.
 constexpr float kDopplerDrop = 0.30f; // pitch at directly behind = 1.0 - this (= 0.70)
 
-constexpr int kBlipInterval = 18; // ticks between blips (~600 ms at the 30 fps game tick)
+// The blip repeats every CVAR_ACCESS_ITEMBOX_INTERVAL milliseconds (a player slider); the
+// beacon is ticked once per ~30 fps game frame, so convert ms -> ticks. Default 600 ms = 18.
+constexpr int kGameTicksPerSecond = 30;
 
 } // namespace
 
@@ -140,9 +142,12 @@ void ItemBoxBeacon::Tick() {
     const float forward = std::cos(static_cast<float>(bestError) * kS16ToRad);
     const float pitch = 1.0f + kDopplerDrop * std::min(0.0f, forward);
 
+    const int intervalMs = std::clamp(
+        CVarGetInteger(CVAR_ACCESS_ITEMBOX_INTERVAL, CVAR_ACCESS_ITEMBOX_INTERVAL_DEFAULT), 100, 3000);
+    const int intervalTicks = std::max(1, (intervalMs * kGameTicksPerSecond) / 1000);
     if (mBlipTimer <= 0) {
         AudioCueService::Instance().PlayItemBoxBeacon(pan, volume, pitch);
-        mBlipTimer = kBlipInterval;
+        mBlipTimer = intervalTicks;
     } else {
         --mBlipTimer;
     }

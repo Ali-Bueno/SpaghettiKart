@@ -7,6 +7,8 @@ enum HMAS_ChannelId {
     HMAS_SFX,
     HMAS_ENV,
     HMAS_ACCESS, // accessibility item-box beacon: its own channel so it never cuts the cue beeps
+    HMAS_SHELL,  // accessibility spinning-shell loop: own channel so it overlaps the beacon / cues
+    HMAS_BANANA, // accessibility grounded-banana hazard blip: own channel so it overlaps the others
     HMAS_MAX_CHANNELS
 };
 

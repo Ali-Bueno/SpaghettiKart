@@ -42,6 +42,8 @@ constexpr int kCueApproach = 1;
 constexpr int kCueCurve = 2;
 constexpr int kCueEdge = 3;
 constexpr int kCueItemBox = 4;
+constexpr int kCueShell = 5;
+constexpr int kCueBanana = 6;
 
 // Game-input block id used while capturing a control rebind (arbitrary, unique).
 constexpr int kRebindBlockId = 0x52424E44; // 'RBND'
@@ -89,8 +91,9 @@ struct Option {
     void (*onChange)();         // post-write side effect (e.g. apply volume live)
     const char* note;           // optional spoken hint (e.g. "Restart required")
     const char* help;           // Info option: explanation spoken when A is pressed
-    int cueExample;             // Info option: cue to play with Z (kCue* ), 0 = none
+    int cueExample;             // Info / slider option: cue to play with Z (kCue* ), 0 = none
     int bitmask;                // Button option: the N64 button to view/rebind
+    const char* unit;           // optional slider value suffix (e.g. "ms")
 };
 
 struct Category {
@@ -161,11 +164,32 @@ const Option kAccessibility[] = {
       .idefault = CVAR_ACCESS_CUE_PITCH_CURVE_DEFAULT, .fmin = 0, .fmax = 100, .fstep = 5 },
     { .label = "Edge warning tone", .kind = OptKind::IntSlider, .cvar = CVAR_ACCESS_CUE_PITCH_EDGE,
       .idefault = CVAR_ACCESS_CUE_PITCH_EDGE_DEFAULT, .fmin = 0, .fmax = 100, .fstep = 5 },
+    // Per-cue volumes. Press Z on any of these to preview the cue at the current setting.
+    { .label = "Approach beep volume", .kind = OptKind::IntSlider, .cvar = CVAR_ACCESS_CUE_VOL_APPROACH,
+      .idefault = CVAR_ACCESS_CUE_VOL_APPROACH_DEFAULT, .fmin = 0, .fmax = 100, .fstep = 5,
+      .asPercent = true, .cueExample = kCueApproach },
+    { .label = "Curve beep volume", .kind = OptKind::IntSlider, .cvar = CVAR_ACCESS_CUE_VOL_CURVE,
+      .idefault = CVAR_ACCESS_CUE_VOL_CURVE_DEFAULT, .fmin = 0, .fmax = 100, .fstep = 5,
+      .asPercent = true, .cueExample = kCueCurve },
+    { .label = "Edge cue volume", .kind = OptKind::IntSlider, .cvar = CVAR_ACCESS_CUE_VOL_EDGE,
+      .idefault = CVAR_ACCESS_CUE_VOL_EDGE_DEFAULT, .fmin = 0, .fmax = 100, .fstep = 5,
+      .asPercent = true, .cueExample = kCueEdge },
     { .label = "Item box cue", .kind = OptKind::Toggle, .cvar = CVAR_ACCESS_ITEMBOX_CUE,
       .idefault = CVAR_ACCESS_ITEMBOX_CUE_DEFAULT },
     { .label = "Item box range", .kind = OptKind::IntSlider, .cvar = CVAR_ACCESS_ITEMBOX_RANGE,
       .idefault = CVAR_ACCESS_ITEMBOX_RANGE_DEFAULT, .fmin = 0, .fmax = 100, .fstep = 5,
       .asPercent = true },
+    { .label = "Item box loop time", .kind = OptKind::IntSlider, .cvar = CVAR_ACCESS_ITEMBOX_INTERVAL,
+      .idefault = CVAR_ACCESS_ITEMBOX_INTERVAL_DEFAULT, .fmin = 100, .fmax = 2000, .fstep = 50, .unit = "ms" },
+    { .label = "Spinning shell cue", .kind = OptKind::Toggle, .cvar = CVAR_ACCESS_SHELL_CUE,
+      .idefault = CVAR_ACCESS_SHELL_CUE_DEFAULT },
+    { .label = "Banana cue", .kind = OptKind::Toggle, .cvar = CVAR_ACCESS_BANANA_CUE,
+      .idefault = CVAR_ACCESS_BANANA_CUE_DEFAULT },
+    { .label = "Banana range", .kind = OptKind::IntSlider, .cvar = CVAR_ACCESS_BANANA_RANGE,
+      .idefault = CVAR_ACCESS_BANANA_RANGE_DEFAULT, .fmin = 0, .fmax = 100, .fstep = 5,
+      .asPercent = true },
+    { .label = "Banana loop time", .kind = OptKind::IntSlider, .cvar = CVAR_ACCESS_BANANA_INTERVAL,
+      .idefault = CVAR_ACCESS_BANANA_INTERVAL_DEFAULT, .fmin = 100, .fmax = 2000, .fstep = 50, .unit = "ms" },
     // Help entries: focus to hear the name, press A to hear how that cue works.
     { .label = "Help: steering guide", .kind = OptKind::Info,
       .help = "The engine sound leans left or right toward the way you should steer to follow the racing "
@@ -193,11 +217,27 @@ const Option kAccessibility[] = {
       .help = "Curve approach tone, curve marker tone and edge warning tone set how high or low each cue "
               "sounds. 50 is normal; lower numbers make that cue deeper and softer, higher numbers make it "
               "sharper. The edge warning is already deep so it is not harsh - lower it further if you like." },
+    { .label = "Help: cue volumes", .kind = OptKind::Info,
+      .help = "Approach beep volume, curve beep volume and edge cue volume set how loud each of those cues is, "
+              "so you can balance them against the music. On any of those volume sliders, press Z to hear it at "
+              "the current setting." },
     { .label = "Help: item box cue", .kind = OptKind::Info,
       .help = "When you are not holding an item, a blip points toward the nearest item box: panned to its "
               "side and louder as you get closer, so you can steer onto it. It stops once you grab a box. "
-              "Item box range sets how early it starts. Press Z to hear an example.",
+              "Item box range sets how early it starts, and item box loop time how fast the blip repeats. "
+              "Press Z to hear an example.",
       .cueExample = kCueItemBox },
+    { .label = "Help: spinning shell cue", .kind = OptKind::Info,
+      .help = "When a shell is thrown and flying across the track - by you or a rival - a looping whoosh "
+              "plays, panned toward the shell and dropping in pitch once it is behind you, so you can hear "
+              "an incoming shell and where it is. It stops when no shell is moving. Press Z to hear an example.",
+      .cueExample = kCueShell },
+    { .label = "Help: banana cue", .kind = OptKind::Info,
+      .help = "A blip points toward the nearest banana lying on the track: panned to its side and louder as "
+              "you get closer, dropping in pitch once it is behind you, so you can steer clear. It sounds "
+              "whether or not you are holding an item. Banana range sets how early it warns, and banana loop "
+              "time how fast the blip repeats. Press Z to hear an example.",
+      .cueExample = kCueBanana },
     { .label = "Help: off-road cue", .kind = OptKind::Info,
       .help = "A voice says off road when you leave the track, and on road when you return." },
 };
@@ -456,7 +496,12 @@ std::string SpeechValue(const Option& o) {
         }
         case OptKind::IntSlider: {
             std::string s = std::to_string(GetIntValue(o));
-            if (o.asPercent) s += "%";
+            if (o.asPercent) {
+                s += "%";
+            } else if (o.unit != nullptr) {
+                s += " ";
+                s += o.unit;
+            }
             return s;
         }
         case OptKind::FloatSlider: {
@@ -498,8 +543,11 @@ std::string DisplayValue(const Option& o) {
             for (char& c : s) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
             return s;
         }
-        case OptKind::IntSlider:
-            return std::to_string(GetIntValue(o));
+        case OptKind::IntSlider: {
+            std::string s = std::to_string(GetIntValue(o));
+            if (o.unit != nullptr) s += o.unit;
+            return s;
+        }
         case OptKind::FloatSlider: {
             float v = GetFloatValue(o);
             if (o.asPercent) {
@@ -543,14 +591,22 @@ void Adjust(const Option& o, int dir) {
 
 // A scripted demo of a cue: a timed sequence of beeps / held-tone events that
 // mimics how the cue actually plays during a race.
-enum { DEMO_BEEP = 0, DEMO_TONE_ON = 1, DEMO_TONE_OFF = 2, DEMO_BEACON = 3 };
+enum {
+    DEMO_BEEP = 0,
+    DEMO_TONE_ON = 1,
+    DEMO_TONE_OFF = 2,
+    DEMO_BEACON = 3,
+    DEMO_SHELL_ON = 4,
+    DEMO_SHELL_OFF = 5,
+    DEMO_BANANA = 6
+};
 struct DemoStep {
     int wait;       // ticks to wait before firing this step
-    int action;     // DEMO_BEEP / DEMO_TONE_ON / DEMO_TONE_OFF / DEMO_BEACON
+    int action;     // DEMO_BEEP / DEMO_TONE_ON / DEMO_TONE_OFF / DEMO_BEACON / DEMO_SHELL_* / DEMO_BANANA
     CueBeep beep;
     float pitch;
     float pan;
-    float volume;   // DEMO_BEACON only (other demos leave it 0)
+    float volume;   // DEMO_BEACON / DEMO_SHELL_ON / DEMO_BANANA only (other demos leave it 0)
 };
 
 // Approach: three rising beeps counting down to the curve (DriveAssist kPitches).
@@ -589,6 +645,29 @@ const DemoStep kItemBoxDemo[] = {
     { 18, DEMO_BEACON, CueBeep::Approach, 1.00f,  0.0f, 0.95f }, // right on it
     { 18, DEMO_BEACON, CueBeep::Approach, 0.85f,  0.4f, 0.70f }, // just passed it: lower, behind
     { 18, DEMO_BEACON, CueBeep::Approach, 0.72f,  0.3f, 0.45f }, // receding behind
+};
+
+// Spinning shell: a looping whoosh that sweeps from one side, passes in front (full pitch,
+// loudest), then drops in pitch and fades as it falls behind - the in-flight Doppler cue.
+// Fields are pitch, pan, volume; the loop is started once and re-steered each step.
+const DemoStep kShellDemo[] = {
+    { 0,  DEMO_SHELL_ON,  CueBeep::Approach, 1.00f, -0.9f, 0.45f }, // far left, approaching
+    { 14, DEMO_SHELL_ON,  CueBeep::Approach, 1.00f, -0.4f, 0.70f }, // closing in
+    { 14, DEMO_SHELL_ON,  CueBeep::Approach, 1.00f,  0.0f, 0.90f }, // passing right in front
+    { 14, DEMO_SHELL_ON,  CueBeep::Approach, 0.80f,  0.5f, 0.70f }, // behind now: lower pitch
+    { 14, DEMO_SHELL_ON,  CueBeep::Approach, 0.72f,  0.9f, 0.40f }, // receding right-behind
+    { 16, DEMO_SHELL_OFF, CueBeep::Approach, 0.00f,  0.0f, 0.00f },
+};
+
+// Banana hazard: blips approaching a banana on the track (panning toward center, growing
+// louder at full pitch), then - once you drive past it - the same banana from behind at a
+// lower pitch and fading (the Doppler "you passed it" cue). Fields are pitch, pan, volume.
+const DemoStep kBananaDemo[] = {
+    { 0,  DEMO_BANANA, CueBeep::Approach, 1.00f, -0.5f, 0.45f }, // ahead-left, approaching
+    { 18, DEMO_BANANA, CueBeep::Approach, 1.00f, -0.2f, 0.70f }, // closer
+    { 18, DEMO_BANANA, CueBeep::Approach, 1.00f,  0.0f, 0.90f }, // right next to it
+    { 18, DEMO_BANANA, CueBeep::Approach, 0.85f,  0.4f, 0.70f }, // just passed it: lower, behind
+    { 18, DEMO_BANANA, CueBeep::Approach, 0.72f,  0.3f, 0.45f }, // receding behind
 };
 
 } // namespace
@@ -740,6 +819,15 @@ class SettingsMenu {
             case DEMO_BEACON:
                 AudioCueService::Instance().PlayItemBoxBeacon(s.pan, s.volume, s.pitch);
                 break;
+            case DEMO_SHELL_ON:
+                AudioCueService::Instance().SetShellLoop(true, s.pan, s.volume, s.pitch);
+                break;
+            case DEMO_SHELL_OFF:
+                AudioCueService::Instance().SetShellLoop(false, 0.0f, 0.0f, 1.0f);
+                break;
+            case DEMO_BANANA:
+                AudioCueService::Instance().PlayBananaBeacon(s.pan, s.volume, s.pitch);
+                break;
         }
         mDemoIndex++;
         if (mDemoIndex >= mDemoLen) {
@@ -763,6 +851,8 @@ class SettingsMenu {
             case kCueCurve:    mDemo = kCurveDemo;    mDemoLen = ARRAY_LEN(kCurveDemo);    break;
             case kCueEdge:     mDemo = kEdgeDemo;     mDemoLen = ARRAY_LEN(kEdgeDemo);     break;
             case kCueItemBox:  mDemo = kItemBoxDemo;  mDemoLen = ARRAY_LEN(kItemBoxDemo);  break;
+            case kCueShell:    mDemo = kShellDemo;    mDemoLen = ARRAY_LEN(kShellDemo);    break;
+            case kCueBanana:   mDemo = kBananaDemo;   mDemoLen = ARRAY_LEN(kBananaDemo);   break;
             default:           return; // no example for this entry
         }
         mDemoIndex = 0;
@@ -770,7 +860,8 @@ class SettingsMenu {
     }
     void StopDemo() {
         if (mDemo != nullptr) {
-            AudioCueService::Instance().SetEdgeTone(false, 0.0f, 0.0f); // kill any held tone
+            AudioCueService::Instance().SetEdgeTone(false, 0.0f, 0.0f);   // kill any held tone
+            AudioCueService::Instance().StopShellLoop();                  // kill any held shell loop
         }
         mDemo = nullptr;
         mDemoLen = 0;

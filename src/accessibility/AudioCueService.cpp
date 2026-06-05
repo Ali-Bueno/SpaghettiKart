@@ -4,12 +4,14 @@
 #include "port/Engine.h"
 #include "port/audio/HMAS.h"
 
-#include <libultraship.h> // Ship::Context::LocateFileAcrossAppDirs
+#include <libultraship.h>
+#include "ship/Context.h"
+#include "ship/resource/ResourceManager.h"
+#include "ship/resource/File.h"
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <cmath>
-#include <filesystem>
 #include <string>
 
 namespace {
@@ -19,16 +21,23 @@ constexpr HMAS_AudioId kCurveBeepId = 0x40ACCE52;
 constexpr HMAS_AudioId kEdgeBeepId = 0x40ACCE53;
 constexpr HMAS_AudioId kEdgeToneId = 0x40ACCE54;
 constexpr HMAS_AudioId kItemBoxBeaconId = 0x40ACCE55;
+constexpr HMAS_AudioId kShellLoopId = 0x40ACCE56;
+constexpr HMAS_AudioId kBananaBeaconId = 0x40ACCE57;
 // Curve-related cues and the edge cue live on separate channels so a continuous
 // edge tone never cuts the curve beeps (and vice versa). The game itself only
 // uses HMAS_MUSIC, so HMAS_ENV, HMAS_SFX and HMAS_ACCESS are free for our cues.
 constexpr HMAS_ChannelId kCurveChannel = HMAS_ENV;     // approach + curve-progress beeps
 constexpr HMAS_ChannelId kEdgeChannel = HMAS_SFX;      // edge beeps + held edge tone
 constexpr HMAS_ChannelId kBeaconChannel = HMAS_ACCESS; // item-box proximity beacon
+constexpr HMAS_ChannelId kShellChannel = HMAS_SHELL;   // spinning-shell loop
+constexpr HMAS_ChannelId kBananaChannel = HMAS_BANANA; // grounded-banana hazard blip
 
-// Item-box beacon sound, loaded from a file shipped next to the executable (resolved
-// across the app dirs). Float/PCM WAV both work via miniaudio.
+// Sounds packed into spaghetti.o2r and loaded from the game archive (not loose files), so
+// players cannot swap them - keeping the authentic Nintendo-style cues intact. These are
+// the virtual paths inside the archive. Float/PCM WAV both work via miniaudio.
 constexpr char kItemBoxBeaconFile[] = "sounds/SE_ITM_BOX_BRK.wav";
+constexpr char kShellLoopFile[] = "sounds/SE_ITM_KAME_G_MOVE.wav";
+constexpr char kBananaBeaconFile[] = "sounds/SE_ITM_BANANA_GROUND.wav";
 
 constexpr int kSampleRate = 32000;
 constexpr float kBeepVolume = 0.55f;
@@ -118,6 +127,11 @@ float CueUserPitch(const char* cvar, int def) {
     return std::pow(2.0f, static_cast<float>(v - 50) / 50.0f);
 }
 
+// User volume for a cue family: slider 0-100% maps straight to a 0..1 channel volume.
+float CueUserVolume(const char* cvar, int def) {
+    return std::clamp(CVarGetInteger(cvar, def), 0, 100) / 100.0f;
+}
+
 } // namespace
 
 AudioCueService& AudioCueService::Instance() {
@@ -164,19 +178,23 @@ void AudioCueService::PlayBeep(CueBeep kind, float pitch, float pan) {
     HMAS_AudioId id;
     HMAS_ChannelId channel = kCurveChannel;
     float userPitch = 1.0f;
+    float userVolume = kBeepVolume;
     switch (kind) {
         case CueBeep::Approach:
             id = kApproachBeepId;
             userPitch = CueUserPitch(CVAR_ACCESS_CUE_PITCH_APPROACH, CVAR_ACCESS_CUE_PITCH_APPROACH_DEFAULT);
+            userVolume = CueUserVolume(CVAR_ACCESS_CUE_VOL_APPROACH, CVAR_ACCESS_CUE_VOL_APPROACH_DEFAULT);
             break;
         case CueBeep::Curve:
             id = kCurveBeepId;
             userPitch = CueUserPitch(CVAR_ACCESS_CUE_PITCH_CURVE, CVAR_ACCESS_CUE_PITCH_CURVE_DEFAULT);
+            userVolume = CueUserVolume(CVAR_ACCESS_CUE_VOL_CURVE, CVAR_ACCESS_CUE_VOL_CURVE_DEFAULT);
             break;
         case CueBeep::Edge:
             id = kEdgeBeepId;
             channel = kEdgeChannel;
             userPitch = CueUserPitch(CVAR_ACCESS_CUE_PITCH_EDGE, CVAR_ACCESS_CUE_PITCH_EDGE_DEFAULT);
+            userVolume = CueUserVolume(CVAR_ACCESS_CUE_VOL_EDGE, CVAR_ACCESS_CUE_VOL_EDGE_DEFAULT);
             break;
         default: return;
     }
@@ -184,7 +202,7 @@ void AudioCueService::PlayBeep(CueBeep kind, float pitch, float pan) {
     hmas->Play(channel, id, false);
     hmas->SetPan(channel, std::clamp(pan, -1.0f, 1.0f));
     hmas->SetPitch(channel, std::clamp(pitch * userPitch, 0.25f, 3.0f));
-    hmas->SetVolume(channel, kBeepVolume);
+    hmas->SetVolume(channel, userVolume);
 }
 
 void AudioCueService::SetEdgeTone(bool on, float pitch, float pan) {
@@ -200,37 +218,55 @@ void AudioCueService::SetEdgeTone(bool on, float pitch, float pan) {
             mEdgeTonePlaying = true;
         }
         const float userPitch = CueUserPitch(CVAR_ACCESS_CUE_PITCH_EDGE, CVAR_ACCESS_CUE_PITCH_EDGE_DEFAULT);
+        const float userVolume = CueUserVolume(CVAR_ACCESS_CUE_VOL_EDGE, CVAR_ACCESS_CUE_VOL_EDGE_DEFAULT);
         hmas->SetPan(kEdgeChannel, std::clamp(pan, -1.0f, 1.0f));
         hmas->SetPitch(kEdgeChannel, std::clamp(pitch * userPitch, 0.25f, 3.0f));
-        hmas->SetVolume(kEdgeChannel, kBeepVolume);
+        hmas->SetVolume(kEdgeChannel, userVolume);
     } else if (mEdgeTonePlaying) {
         hmas->Stop(kEdgeChannel);
         mEdgeTonePlaying = false;
     }
 }
 
-bool AudioCueService::EnsureBeaconLoaded() {
-    if (mBeaconReady) {
+bool AudioCueService::EnsureArchiveSound(bool& ready, bool& failed, int id, const char* path,
+                                         std::vector<uint8_t>& keepAlive) {
+    if (ready) {
         return true;
     }
-    if (mBeaconLoadFailed) {
-        return false; // already determined the file is missing; don't retry each frame
+    if (failed) {
+        return false; // sound not in the archive; don't retry each frame
     }
     if (GameEngine::Instance == nullptr || GameEngine::Instance->gHMAS == nullptr) {
         return false; // audio engine not up yet; try again later (not a hard failure)
     }
+    auto context = Ship::Context::GetInstance();
+    if (context == nullptr) {
+        return false; // engine still starting; try again later
+    }
+    auto resourceManager = context->GetResourceManager();
+    if (resourceManager == nullptr) {
+        return false;
+    }
     HMAS* hmas = GameEngine::Instance->gHMAS;
-    if (!hmas->IsIDRegistered(kItemBoxBeaconId)) {
-        const std::string path = Ship::Context::LocateFileAcrossAppDirs(kItemBoxBeaconFile);
-        if (!std::filesystem::exists(path)) {
-            SPDLOG_WARN("[Accessibility] item-box beacon sound not found: {}", kItemBoxBeaconFile);
-            mBeaconLoadFailed = true; // give up until next launch (avoids per-frame disk checks)
+    if (!hmas->IsIDRegistered(id)) {
+        // Read the raw WAV bytes straight out of spaghetti.o2r (bypassing resource
+        // deserialization), then register them with HMAS from memory. The decoder keeps a
+        // pointer into keepAlive, so it must outlive the sound - hence the long-lived member.
+        std::shared_ptr<Ship::File> file = resourceManager->LoadFileProcess(std::string(path));
+        if (file == nullptr || file->Buffer == nullptr || file->Buffer->empty()) {
+            SPDLOG_WARN("[Accessibility] cue sound not found in archive: {}", path);
+            failed = true; // not packed into spaghetti.o2r; stop retrying
             return false;
         }
-        hmas->RegisterSound(kItemBoxBeaconId, path);
+        keepAlive.assign(file->Buffer->begin(), file->Buffer->end());
+        hmas->RegisterSound(id, keepAlive.data(), static_cast<uint32_t>(keepAlive.size()));
     }
-    mBeaconReady = hmas->IsIDRegistered(kItemBoxBeaconId);
-    return mBeaconReady;
+    ready = hmas->IsIDRegistered(id);
+    return ready;
+}
+
+bool AudioCueService::EnsureBeaconLoaded() {
+    return EnsureArchiveSound(mBeaconReady, mBeaconLoadFailed, kItemBoxBeaconId, kItemBoxBeaconFile, mBeaconBytes);
 }
 
 void AudioCueService::PlayItemBoxBeacon(float pan, float volume, float pitch) {
@@ -249,4 +285,55 @@ void AudioCueService::StopItemBoxBeacon() {
         return;
     }
     GameEngine::Instance->gHMAS->Stop(kBeaconChannel);
+}
+
+bool AudioCueService::EnsureShellLoaded() {
+    return EnsureArchiveSound(mShellReady, mShellLoadFailed, kShellLoopId, kShellLoopFile, mShellBytes);
+}
+
+void AudioCueService::SetShellLoop(bool on, float pan, float volume, float pitch) {
+    if (on) {
+        if (!EnsureShellLoaded()) {
+            return;
+        }
+        HMAS* hmas = GameEngine::Instance->gHMAS;
+        // Start the loop once (miniaudio repeats the whole file seamlessly), then just keep
+        // steering its pan/volume/pitch as the shell flies around.
+        if (!mShellLoopPlaying) {
+            hmas->Play(kShellChannel, kShellLoopId, true);
+            mShellLoopPlaying = true;
+        }
+        hmas->SetPan(kShellChannel, std::clamp(pan, -1.0f, 1.0f));
+        hmas->SetVolume(kShellChannel, std::clamp(volume, 0.0f, 1.0f));
+        hmas->SetPitch(kShellChannel, std::clamp(pitch, 0.25f, 3.0f));
+    } else if (mShellLoopPlaying) {
+        GameEngine::Instance->gHMAS->Stop(kShellChannel);
+        mShellLoopPlaying = false;
+    }
+}
+
+void AudioCueService::StopShellLoop() {
+    SetShellLoop(false, 0.0f, 0.0f, 1.0f);
+}
+
+bool AudioCueService::EnsureBananaLoaded() {
+    return EnsureArchiveSound(mBananaReady, mBananaLoadFailed, kBananaBeaconId, kBananaBeaconFile, mBananaBytes);
+}
+
+void AudioCueService::PlayBananaBeacon(float pan, float volume, float pitch) {
+    if (!EnsureBananaLoaded()) {
+        return;
+    }
+    HMAS* hmas = GameEngine::Instance->gHMAS;
+    hmas->Play(kBananaChannel, kBananaBeaconId, false);
+    hmas->SetPan(kBananaChannel, std::clamp(pan, -1.0f, 1.0f));
+    hmas->SetVolume(kBananaChannel, std::clamp(volume, 0.0f, 1.0f));
+    hmas->SetPitch(kBananaChannel, std::clamp(pitch, 0.25f, 3.0f));
+}
+
+void AudioCueService::StopBananaBeacon() {
+    if (!mBananaReady) {
+        return;
+    }
+    GameEngine::Instance->gHMAS->Stop(kBananaChannel);
 }

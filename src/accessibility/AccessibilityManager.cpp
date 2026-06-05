@@ -82,6 +82,8 @@ void AccessibilityManager::Tick() {
     if (!Enabled()) {
         mDriveAssist.Reset(); // recenter game audio if disabled mid-race
         mItemBoxBeacon.Reset();
+        mShellTracker.Reset();
+        mBananaBeacon.Reset();
         return;
     }
 
@@ -106,12 +108,16 @@ void AccessibilityManager::Tick() {
             mRaceNarrator.Reset();
             mDriveAssist.Reset();
             mItemBoxBeacon.Reset();
+            mShellTracker.Reset();
+            mBananaBeacon.Reset();
         } else if (mPauseNarrator.MenuActive()) {
             // An in-race overlay menu is up (pause, or the end-course/replay menu):
             // silence the driving cues and narrate the menu.
             mRaceNarrator.Reset();
             mDriveAssist.Reset();
             mItemBoxBeacon.Reset();
+            mShellTracker.Reset();
+            mBananaBeacon.Reset();
             if (CVarGetInteger(CVAR_ACCESS_MENU_NARRATION, CVAR_ACCESS_MENU_NARRATION_DEFAULT) != 0) {
                 mPauseNarrator.Tick(reader);
             }
@@ -133,9 +139,13 @@ void AccessibilityManager::Tick() {
                     mDriveAssist.Reset();
                 }
                 mItemBoxBeacon.Tick(); // has its own toggle (CVAR_ACCESS_ITEMBOX_CUE)
+                mShellTracker.Tick();  // has its own toggle (CVAR_ACCESS_SHELL_CUE)
+                mBananaBeacon.Tick();  // has its own toggle (CVAR_ACCESS_BANANA_CUE)
             } else {
                 mDriveAssist.Reset();
                 mItemBoxBeacon.Reset();
+                mShellTracker.Reset();
+                mBananaBeacon.Reset();
             }
         }
     } else if (gGamestate != ENDING && gGamestate != CREDITS_SEQUENCE) {
@@ -146,6 +156,8 @@ void AccessibilityManager::Tick() {
         if (!SettingsMenu_DemoActive()) {
             mDriveAssist.Reset(); // skip while a cue demo plays so its held edge tone survives
             mItemBoxBeacon.Reset();
+            mShellTracker.Reset();
+            mBananaBeacon.Reset();
         }
         if (CVarGetInteger(CVAR_ACCESS_MENU_NARRATION, CVAR_ACCESS_MENU_NARRATION_DEFAULT) != 0) {
             mMenuNarrator.Tick(reader);
@@ -157,6 +169,8 @@ void AccessibilityManager::Tick() {
         mRaceNarrator.Reset();
         mDriveAssist.Reset();
         mItemBoxBeacon.Reset();
+        mShellTracker.Reset();
+        mBananaBeacon.Reset();
         if (gGamestate == ENDING &&
             CVarGetInteger(CVAR_ACCESS_MENU_NARRATION, CVAR_ACCESS_MENU_NARRATION_DEFAULT) != 0) {
             mPostRaceNarrator.Tick(reader);
