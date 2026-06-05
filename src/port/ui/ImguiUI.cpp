@@ -503,6 +503,20 @@ void DrawAccessibilityMenu() {
                 "How early the edge cue starts. Lower keeps it silent until you are very close to the "
                 "edge; higher starts it sooner (from further in). It is always silent while you are "
                 "comfortably centered - raise this if you want earlier warnings."));
+        UIWidgets::CVarSliderInt(
+            "Drive Assist: Curve Approach Tone", "gAccessibility.CuePitchApproach",
+            UIWidgets::IntSliderOptions().Min(0).Max(100).Step(5).DefaultValue(50).Format("%d").Tooltip(
+                "Pitch of the curve-approach beeps. 50 is normal; lower is deeper/softer, higher is sharper."));
+        UIWidgets::CVarSliderInt(
+            "Drive Assist: Curve Marker Tone", "gAccessibility.CuePitchCurve",
+            UIWidgets::IntSliderOptions().Min(0).Max(100).Step(5).DefaultValue(50).Format("%d").Tooltip(
+                "Pitch of the curve entry/middle/exit beeps. 50 is normal; lower is deeper/softer, higher is "
+                "sharper."));
+        UIWidgets::CVarSliderInt(
+            "Drive Assist: Edge Warning Tone", "gAccessibility.CuePitchEdge",
+            UIWidgets::IntSliderOptions().Min(0).Max(100).Step(5).DefaultValue(50).Format("%d").Tooltip(
+                "Pitch of the edge-proximity beeps and the held edge tone. 50 is normal; lower is deeper. It "
+                "is already deep by default so it is not piercing."));
         ImGui::EndMenu();
     }
 }

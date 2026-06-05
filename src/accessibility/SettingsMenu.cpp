@@ -155,6 +155,12 @@ const Option kAccessibility[] = {
     { .label = "Edge sensitivity", .kind = OptKind::IntSlider, .cvar = CVAR_ACCESS_EDGE_SENSITIVITY,
       .idefault = CVAR_ACCESS_EDGE_SENSITIVITY_DEFAULT, .fmin = 0, .fmax = 100, .fstep = 5,
       .asPercent = true },
+    { .label = "Curve approach tone", .kind = OptKind::IntSlider, .cvar = CVAR_ACCESS_CUE_PITCH_APPROACH,
+      .idefault = CVAR_ACCESS_CUE_PITCH_APPROACH_DEFAULT, .fmin = 0, .fmax = 100, .fstep = 5 },
+    { .label = "Curve marker tone", .kind = OptKind::IntSlider, .cvar = CVAR_ACCESS_CUE_PITCH_CURVE,
+      .idefault = CVAR_ACCESS_CUE_PITCH_CURVE_DEFAULT, .fmin = 0, .fmax = 100, .fstep = 5 },
+    { .label = "Edge warning tone", .kind = OptKind::IntSlider, .cvar = CVAR_ACCESS_CUE_PITCH_EDGE,
+      .idefault = CVAR_ACCESS_CUE_PITCH_EDGE_DEFAULT, .fmin = 0, .fmax = 100, .fstep = 5 },
     { .label = "Item box cue", .kind = OptKind::Toggle, .cvar = CVAR_ACCESS_ITEMBOX_CUE,
       .idefault = CVAR_ACCESS_ITEMBOX_CUE_DEFAULT },
     { .label = "Item box range", .kind = OptKind::IntSlider, .cvar = CVAR_ACCESS_ITEMBOX_RANGE,
@@ -173,14 +179,19 @@ const Option kAccessibility[] = {
       .help = "As you near a curve, rising beeps count down to it. Press Z to hear an example.",
       .cueExample = kCueApproach },
     { .label = "Help: in-curve beeps", .kind = OptKind::Info,
-      .help = "Inside a curve you hear an entry beep, an apex beep at the tightest point, and a higher exit "
-              "beep. Press Z to hear an example.",
+      .help = "Inside a curve you hear three hollow beeps - at the entry, the middle, and a higher one at the "
+              "exit - so you can feel your way through it. They sound different from the approach beeps. Press "
+              "Z to hear an example.",
       .cueExample = kCueCurve },
     { .label = "Help: edge cue", .kind = OptKind::Info,
       .help = "As you drift toward a track edge, beeps pan to that side and get faster and higher, and a "
               "steady tone sounds right at the edge. It stays silent while you are centered. Edge sensitivity "
               "sets how early it starts. Press Z to hear an example.",
       .cueExample = kCueEdge },
+    { .label = "Help: cue tones", .kind = OptKind::Info,
+      .help = "Curve approach tone, curve marker tone and edge warning tone set how high or low each cue "
+              "sounds. 50 is normal; lower numbers make that cue deeper and softer, higher numbers make it "
+              "sharper. The edge warning is already deep so it is not harsh - lower it further if you like." },
     { .label = "Help: item box cue", .kind = OptKind::Info,
       .help = "When you are not holding an item, a blip points toward the nearest item box: panned to its "
               "side and louder as you get closer, so you can steer onto it. It stops once you grab a box. "

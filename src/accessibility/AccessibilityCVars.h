@@ -15,6 +15,13 @@
 // Steering Guide look-ahead ("anticipation"), in path points: how far ahead to aim.
 // Lower = tighter centering / reacts sooner; higher = smoother / leans earlier.
 #define CVAR_ACCESS_DRIVE_LOOKAHEAD "gAccessibility.DriveAssistLookAhead"
+// Audio-cue tone trims (0-100, 50 = unchanged): shift each cue family's pitch down
+// (deeper/softer) or up. Purely cosmetic - they only change how a cue sounds, never the
+// guidance - so they are safe to expose. The edge warning is deep by default so it is not
+// piercing; these let a player tune any cue to taste.
+#define CVAR_ACCESS_CUE_PITCH_APPROACH "gAccessibility.CuePitchApproach"
+#define CVAR_ACCESS_CUE_PITCH_CURVE "gAccessibility.CuePitchCurve"
+#define CVAR_ACCESS_CUE_PITCH_EDGE "gAccessibility.CuePitchEdge"
 // Short panned beep when the kart drifts close to a track edge (pre off-road warning).
 #define CVAR_ACCESS_EDGE_CUE "gAccessibility.EdgeCue"
 // Edge cue sensitivity 0-100: how early (how far from the edge) the cue starts. The
@@ -50,6 +57,9 @@
 #define CVAR_ACCESS_DRIVE_LOOKAHEAD_DEFAULT 12
 #define CVAR_ACCESS_EDGE_CUE_DEFAULT 1
 #define CVAR_ACCESS_EDGE_SENSITIVITY_DEFAULT 50
+#define CVAR_ACCESS_CUE_PITCH_APPROACH_DEFAULT 50
+#define CVAR_ACCESS_CUE_PITCH_CURVE_DEFAULT 50
+#define CVAR_ACCESS_CUE_PITCH_EDGE_DEFAULT 50
 #define CVAR_ACCESS_ITEMBOX_CUE_DEFAULT 1
 #define CVAR_ACCESS_ITEMBOX_RANGE_DEFAULT 50
 

@@ -1,5 +1,6 @@
 #include "AudioCueService.h"
 
+#include "AccessibilityCVars.h"
 #include "port/Engine.h"
 #include "port/audio/HMAS.h"
 
@@ -110,6 +111,13 @@ void BuildBeepWav(std::vector<uint8_t>& out, float freq, int samples, Wave wave,
     }
 }
 
+// User tone trim for a cue family: slider 0-100 (50 = unchanged) maps to a pitch multiplier
+// of one octave down (0) .. one octave up (100), centered at 1.0. Lets a player soften a cue.
+float CueUserPitch(const char* cvar, int def) {
+    const int v = std::clamp(CVarGetInteger(cvar, def), 0, 100);
+    return std::pow(2.0f, static_cast<float>(v - 50) / 50.0f);
+}
+
 } // namespace
 
 AudioCueService& AudioCueService::Instance() {
@@ -126,10 +134,10 @@ bool AudioCueService::EnsureInitialized() {
     }
     if (mApproachWav.empty()) {
         // Distinct waveform per cue family so each is unmistakable by ear.
-        BuildBeepWav(mApproachWav, 700.0f, 2600, Wave::Sine);        // curve approach: smooth sine
-        BuildBeepWav(mCurveWav, 480.0f, 3000, Wave::Triangle);       // curve entry/apex/exit: soft triangle
-        BuildBeepWav(mEdgeWav, 900.0f, 850, Wave::Saw);              // edge proximity: harsh saw (short, stays crisp when rapid)
-        BuildBeepWav(mEdgeToneWav, 1000.0f, 3200, Wave::Saw, false); // held edge tone: saw, seamless loop
+        BuildBeepWav(mApproachWav, 700.0f, 2600, Wave::Sine);            // curve approach: smooth high sine
+        BuildBeepWav(mCurveWav, 440.0f, 3000, Wave::Square);             // curve entry/apex/exit: hollow square (clearly unlike the approach)
+        BuildBeepWav(mEdgeWav, 400.0f, 1500, Wave::Triangle);            // edge proximity: soft triangle (mellow, not the old harsh saw)
+        BuildBeepWav(mEdgeToneWav, 400.0f, 3200, Wave::Triangle, false); // held edge tone: soft triangle, seamless loop (40 whole cycles)
     }
     HMAS* hmas = GameEngine::Instance->gHMAS;
     if (!hmas->IsIDRegistered(kApproachBeepId)) {
@@ -155,16 +163,27 @@ void AudioCueService::PlayBeep(CueBeep kind, float pitch, float pan) {
     HMAS* hmas = GameEngine::Instance->gHMAS;
     HMAS_AudioId id;
     HMAS_ChannelId channel = kCurveChannel;
+    float userPitch = 1.0f;
     switch (kind) {
-        case CueBeep::Approach: id = kApproachBeepId; break;
-        case CueBeep::Curve:    id = kCurveBeepId; break;
-        case CueBeep::Edge:     id = kEdgeBeepId; channel = kEdgeChannel; break;
+        case CueBeep::Approach:
+            id = kApproachBeepId;
+            userPitch = CueUserPitch(CVAR_ACCESS_CUE_PITCH_APPROACH, CVAR_ACCESS_CUE_PITCH_APPROACH_DEFAULT);
+            break;
+        case CueBeep::Curve:
+            id = kCurveBeepId;
+            userPitch = CueUserPitch(CVAR_ACCESS_CUE_PITCH_CURVE, CVAR_ACCESS_CUE_PITCH_CURVE_DEFAULT);
+            break;
+        case CueBeep::Edge:
+            id = kEdgeBeepId;
+            channel = kEdgeChannel;
+            userPitch = CueUserPitch(CVAR_ACCESS_CUE_PITCH_EDGE, CVAR_ACCESS_CUE_PITCH_EDGE_DEFAULT);
+            break;
         default: return;
     }
 
     hmas->Play(channel, id, false);
     hmas->SetPan(channel, std::clamp(pan, -1.0f, 1.0f));
-    hmas->SetPitch(channel, std::clamp(pitch, 0.25f, 3.0f));
+    hmas->SetPitch(channel, std::clamp(pitch * userPitch, 0.25f, 3.0f));
     hmas->SetVolume(channel, kBeepVolume);
 }
 
@@ -180,8 +199,9 @@ void AudioCueService::SetEdgeTone(bool on, float pitch, float pan) {
             hmas->Play(kEdgeChannel, kEdgeToneId, true);
             mEdgeTonePlaying = true;
         }
+        const float userPitch = CueUserPitch(CVAR_ACCESS_CUE_PITCH_EDGE, CVAR_ACCESS_CUE_PITCH_EDGE_DEFAULT);
         hmas->SetPan(kEdgeChannel, std::clamp(pan, -1.0f, 1.0f));
-        hmas->SetPitch(kEdgeChannel, std::clamp(pitch, 0.25f, 3.0f));
+        hmas->SetPitch(kEdgeChannel, std::clamp(pitch * userPitch, 0.25f, 3.0f));
         hmas->SetVolume(kEdgeChannel, kBeepVolume);
     } else if (mEdgeTonePlaying) {
         hmas->Stop(kEdgeChannel);
