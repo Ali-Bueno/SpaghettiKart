@@ -10,6 +10,7 @@ enum HMAS_ChannelId {
     HMAS_SHELL,     // accessibility spinning-shell loop (green / blue): own channel so it overlaps the beacon / cues
     HMAS_SHELL_RED, // accessibility spinning red-shell loop: own channel so it overlaps the green/blue shell loop
     HMAS_BANANA,    // accessibility grounded-banana hazard blip: own channel so it overlaps the others
+    HMAS_OBSTACLE,  // accessibility obstacle collision-warning blip: own channel so it overlaps the others
     HMAS_MAX_CHANNELS
 };
 

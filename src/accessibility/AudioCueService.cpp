@@ -24,6 +24,7 @@ constexpr HMAS_AudioId kItemBoxBeaconId = 0x40ACCE55;
 constexpr HMAS_AudioId kShellLoopId = 0x40ACCE56;
 constexpr HMAS_AudioId kBananaBeaconId = 0x40ACCE57;
 constexpr HMAS_AudioId kShellRedLoopId = 0x40ACCE58;
+constexpr HMAS_AudioId kObstacleBeaconId = 0x40ACCE59;
 // Curve-related cues and the edge cue live on separate channels so a continuous
 // edge tone never cuts the curve beeps (and vice versa). The game itself only
 // uses HMAS_MUSIC, so HMAS_ENV, HMAS_SFX and HMAS_ACCESS are free for our cues.
@@ -33,6 +34,7 @@ constexpr HMAS_ChannelId kBeaconChannel = HMAS_ACCESS; // item-box proximity bea
 constexpr HMAS_ChannelId kShellChannel = HMAS_SHELL;        // green/blue spinning-shell loop
 constexpr HMAS_ChannelId kShellRedChannel = HMAS_SHELL_RED; // red spinning-shell loop
 constexpr HMAS_ChannelId kBananaChannel = HMAS_BANANA;      // grounded-banana hazard blip
+constexpr HMAS_ChannelId kObstacleChannel = HMAS_OBSTACLE;  // obstacle collision-warning blip
 
 // Sounds packed into spaghetti.o2r and loaded from the game archive (not loose files), so
 // players cannot swap them - keeping the authentic Nintendo-style cues intact. These are
@@ -41,6 +43,7 @@ constexpr char kItemBoxBeaconFile[] = "sounds/SE_ITM_BOX_BRK.wav";
 constexpr char kShellLoopFile[] = "sounds/SE_ITM_KAME_G_MOVE.wav";
 constexpr char kShellRedLoopFile[] = "sounds/SE_ITM_KAME_R_MOVE.wav";
 constexpr char kBananaBeaconFile[] = "sounds/SE_ITM_BANANA_GROUND.wav";
+constexpr char kObstacleBeaconFile[] = "sounds/SE_ITM_EQUIP.wav";
 
 constexpr int kSampleRate = 32000;
 constexpr float kBeepVolume = 0.55f;
@@ -359,4 +362,27 @@ void AudioCueService::StopBananaBeacon() {
         return;
     }
     GameEngine::Instance->gHMAS->Stop(kBananaChannel);
+}
+
+bool AudioCueService::EnsureObstacleLoaded() {
+    return EnsureArchiveSound(mObstacleReady, mObstacleLoadFailed, kObstacleBeaconId, kObstacleBeaconFile,
+                              mObstacleBytes);
+}
+
+void AudioCueService::PlayObstacleBeacon(float pan, float volume, float pitch) {
+    if (!EnsureObstacleLoaded()) {
+        return;
+    }
+    HMAS* hmas = GameEngine::Instance->gHMAS;
+    hmas->Play(kObstacleChannel, kObstacleBeaconId, false);
+    hmas->SetPan(kObstacleChannel, std::clamp(pan, -1.0f, 1.0f));
+    hmas->SetVolume(kObstacleChannel, std::clamp(volume, 0.0f, 1.0f));
+    hmas->SetPitch(kObstacleChannel, std::clamp(pitch, 0.25f, 3.0f));
+}
+
+void AudioCueService::StopObstacleBeacon() {
+    if (!mObstacleReady) {
+        return;
+    }
+    GameEngine::Instance->gHMAS->Stop(kObstacleChannel);
 }

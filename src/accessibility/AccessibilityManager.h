@@ -10,6 +10,7 @@
 #include "ItemBoxBeacon.h"
 #include "ShellTracker.h"
 #include "BananaBeacon.h"
+#include "ObstacleBeacon.h"
 
 /**
  * Top-level orchestrator for accessibility features.
@@ -44,6 +45,7 @@ class AccessibilityManager {
     ItemBoxBeacon mItemBoxBeacon;
     ShellTracker mShellTracker;
     BananaBeacon mBananaBeacon;
+    ObstacleBeacon mObstacleBeacon;
 };
 
 extern "C" {

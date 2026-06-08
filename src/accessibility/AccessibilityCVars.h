@@ -57,6 +57,17 @@
 // Banana cue loop time in milliseconds: how often the blip repeats while a banana is in
 // range (the pulse rate). Default ~600 ms.
 #define CVAR_ACCESS_BANANA_INTERVAL "gAccessibility.BananaInterval"
+// Collision-warning blip toward the nearest dynamic obstacle you can crash into - oncoming
+// traffic (cars / trucks / buses), falling rocks, the train, paddle boats, cows, piranha
+// plants - panned toward it and dropping in pitch once it is behind you, so a blind player
+// can hear a hazard closing in and steer clear. Pulses ~200 ms while one is in range.
+#define CVAR_ACCESS_OBSTACLE_CUE "gAccessibility.ObstacleCue"
+// Obstacle warning range 0-100: how close a hazard must be before the cue starts. Lower =
+// only warns when nearly on top of it; higher = warns from further out.
+#define CVAR_ACCESS_OBSTACLE_RANGE "gAccessibility.ObstacleRange"
+// Obstacle cue loop time in milliseconds: how often the blip repeats while a collision is
+// imminent (the pulse rate). Lower = faster / more urgent. Default 100 ms.
+#define CVAR_ACCESS_OBSTACLE_INTERVAL "gAccessibility.ObstacleInterval"
 // Rival-kart engine volume scale (0..1): lowered by default so a blind player can
 // pick out their own kart over the pack. Applied live in src/audio/external.c.
 #define CVAR_ACCESS_RIVAL_VOLUME "gAccessibility.RivalKartVolume"
@@ -95,6 +106,9 @@
 #define CVAR_ACCESS_BANANA_CUE_DEFAULT 1
 #define CVAR_ACCESS_BANANA_RANGE_DEFAULT 50
 #define CVAR_ACCESS_BANANA_INTERVAL_DEFAULT 600
+#define CVAR_ACCESS_OBSTACLE_CUE_DEFAULT 1
+#define CVAR_ACCESS_OBSTACLE_RANGE_DEFAULT 50
+#define CVAR_ACCESS_OBSTACLE_INTERVAL_DEFAULT 100
 
 // Recommended starting volumes (0..1) seeded once on first run. Testers reported they
 // follow the audio cues better with the music and rival karts a little quieter.

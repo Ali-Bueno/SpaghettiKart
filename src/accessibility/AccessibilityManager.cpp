@@ -84,6 +84,7 @@ void AccessibilityManager::Tick() {
         mItemBoxBeacon.Reset();
         mShellTracker.Reset();
         mBananaBeacon.Reset();
+        mObstacleBeacon.Reset();
         return;
     }
 
@@ -110,6 +111,7 @@ void AccessibilityManager::Tick() {
             mItemBoxBeacon.Reset();
             mShellTracker.Reset();
             mBananaBeacon.Reset();
+            mObstacleBeacon.Reset();
         } else if (mPauseNarrator.MenuActive()) {
             // An in-race overlay menu is up (pause, or the end-course/replay menu):
             // silence the driving cues and narrate the menu.
@@ -118,6 +120,7 @@ void AccessibilityManager::Tick() {
             mItemBoxBeacon.Reset();
             mShellTracker.Reset();
             mBananaBeacon.Reset();
+            mObstacleBeacon.Reset();
             if (CVarGetInteger(CVAR_ACCESS_MENU_NARRATION, CVAR_ACCESS_MENU_NARRATION_DEFAULT) != 0) {
                 mPauseNarrator.Tick(reader);
             }
@@ -138,14 +141,16 @@ void AccessibilityManager::Tick() {
                 } else {
                     mDriveAssist.Reset();
                 }
-                mItemBoxBeacon.Tick(); // has its own toggle (CVAR_ACCESS_ITEMBOX_CUE)
-                mShellTracker.Tick();  // has its own toggle (CVAR_ACCESS_SHELL_CUE)
-                mBananaBeacon.Tick();  // has its own toggle (CVAR_ACCESS_BANANA_CUE)
+                mItemBoxBeacon.Tick();  // has its own toggle (CVAR_ACCESS_ITEMBOX_CUE)
+                mShellTracker.Tick();   // has its own toggle (CVAR_ACCESS_SHELL_CUE)
+                mBananaBeacon.Tick();   // has its own toggle (CVAR_ACCESS_BANANA_CUE)
+                mObstacleBeacon.Tick(); // has its own toggle (CVAR_ACCESS_OBSTACLE_CUE)
             } else {
                 mDriveAssist.Reset();
                 mItemBoxBeacon.Reset();
                 mShellTracker.Reset();
                 mBananaBeacon.Reset();
+                mObstacleBeacon.Reset();
             }
         }
     } else if (gGamestate != ENDING && gGamestate != CREDITS_SEQUENCE) {
@@ -158,6 +163,7 @@ void AccessibilityManager::Tick() {
             mItemBoxBeacon.Reset();
             mShellTracker.Reset();
             mBananaBeacon.Reset();
+            mObstacleBeacon.Reset();
         }
         if (CVarGetInteger(CVAR_ACCESS_MENU_NARRATION, CVAR_ACCESS_MENU_NARRATION_DEFAULT) != 0) {
             mMenuNarrator.Tick(reader);
@@ -171,6 +177,7 @@ void AccessibilityManager::Tick() {
         mItemBoxBeacon.Reset();
         mShellTracker.Reset();
         mBananaBeacon.Reset();
+        mObstacleBeacon.Reset();
         if (gGamestate == ENDING &&
             CVarGetInteger(CVAR_ACCESS_MENU_NARRATION, CVAR_ACCESS_MENU_NARRATION_DEFAULT) != 0) {
             mPostRaceNarrator.Tick(reader);

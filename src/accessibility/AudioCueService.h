@@ -68,6 +68,14 @@ class AudioCueService {
     // Cut any in-progress banana blip (e.g. when no banana is near or the race ends).
     void StopBananaBeacon();
 
+    // One-shot collision-warning blip toward the nearest in-range obstacle (traffic, falling
+    // rock, train...), on its own channel. pan -1..+1, volume 0..1, pitch multiplies the base
+    // frequency (lower once the obstacle is behind you - same Doppler cue). Retriggered by
+    // ObstacleBeacon every ~200 ms. Loads SE_ITM_EQUIP.wav on first use; a no-op if missing.
+    void PlayObstacleBeacon(float pan, float volume, float pitch = 1.0f);
+    // Cut any in-progress obstacle blip (e.g. when nothing is in range or the race ends).
+    void StopObstacleBeacon();
+
   private:
     AudioCueService() = default;
 
@@ -76,6 +84,7 @@ class AudioCueService {
     bool EnsureShellLoaded();
     bool EnsureShellRedLoaded();
     bool EnsureBananaLoaded();
+    bool EnsureObstacleLoaded();
     // Drive a looping cue on its own channel: start it once when it turns on, then just steer
     // pan/volume/pitch; stop it when it turns off. Shared by both shell loops. `ready` is the
     // result of the matching Ensure* call (ignored when on=false); `playing` is the per-loop
@@ -100,6 +109,8 @@ class AudioCueService {
     bool mShellRedLoopPlaying = false; // whether the red shell whoosh is currently playing
     bool mBananaReady = false;      // whether the grounded-banana hazard sound is loaded
     bool mBananaLoadFailed = false; // file missing: don't keep retrying every frame
+    bool mObstacleReady = false;      // whether the obstacle collision-warning sound is loaded
+    bool mObstacleLoadFailed = false; // file missing: don't keep retrying every frame
 
     // WAV buffers kept alive: the miniaudio decoders reference them. The generated cue
     // beeps and the sounds loaded from spaghetti.o2r both live here for the whole session.
@@ -111,4 +122,5 @@ class AudioCueService {
     std::vector<uint8_t> mShellBytes;   // green/blue spinning-shell loop WAV (from the archive)
     std::vector<uint8_t> mShellRedBytes; // red spinning-shell loop WAV (from the archive)
     std::vector<uint8_t> mBananaBytes;  // grounded-banana WAV (from the archive)
+    std::vector<uint8_t> mObstacleBytes; // obstacle collision-warning WAV (from the archive)
 };

@@ -44,6 +44,7 @@ constexpr int kCueEdge = 3;
 constexpr int kCueItemBox = 4;
 constexpr int kCueShell = 5;
 constexpr int kCueBanana = 6;
+constexpr int kCueObstacle = 7;
 
 // Game-input block id used while capturing a control rebind (arbitrary, unique).
 constexpr int kRebindBlockId = 0x52424E44; // 'RBND'
@@ -190,6 +191,13 @@ const Option kAccessibility[] = {
       .asPercent = true },
     { .label = "Banana loop time", .kind = OptKind::IntSlider, .cvar = CVAR_ACCESS_BANANA_INTERVAL,
       .idefault = CVAR_ACCESS_BANANA_INTERVAL_DEFAULT, .fmin = 100, .fmax = 2000, .fstep = 50, .unit = "ms" },
+    { .label = "Obstacle warning", .kind = OptKind::Toggle, .cvar = CVAR_ACCESS_OBSTACLE_CUE,
+      .idefault = CVAR_ACCESS_OBSTACLE_CUE_DEFAULT },
+    { .label = "Obstacle warning range", .kind = OptKind::IntSlider, .cvar = CVAR_ACCESS_OBSTACLE_RANGE,
+      .idefault = CVAR_ACCESS_OBSTACLE_RANGE_DEFAULT, .fmin = 0, .fmax = 100, .fstep = 5,
+      .asPercent = true },
+    { .label = "Obstacle loop time", .kind = OptKind::IntSlider, .cvar = CVAR_ACCESS_OBSTACLE_INTERVAL,
+      .idefault = CVAR_ACCESS_OBSTACLE_INTERVAL_DEFAULT, .fmin = 50, .fmax = 500, .fstep = 25, .unit = "ms" },
     // Help entries: focus to hear the name, press A to hear how that cue works.
     { .label = "Help: steering guide", .kind = OptKind::Info,
       .help = "The engine sound leans left or right toward the way you should steer to follow the racing "
@@ -238,6 +246,14 @@ const Option kAccessibility[] = {
               "whether or not you are holding an item. Banana range sets how early it warns, and banana loop "
               "time how fast the blip repeats. Press Z to hear an example.",
       .cueExample = kCueBanana },
+    { .label = "Help: obstacle warning", .kind = OptKind::Info,
+      .help = "When you are on course to actually hit a moving obstacle - heading into oncoming traffic, a "
+              "falling rock, the train, a paddle boat, a cow, a piranha plant - a blip pulses toward the side "
+              "it is on, so you can steer away. It only fires for a head-on or near head-on hit, not for a "
+              "hazard you will slip past on the side. Obstacle warning range sets how close it must be before "
+              "the cue starts, and obstacle loop time how fast it pulses (lower is faster). Press Z to hear "
+              "an example.",
+      .cueExample = kCueObstacle },
     { .label = "Help: off-road cue", .kind = OptKind::Info,
       .help = "A voice says off road when you leave the track, and on road when you return." },
 };
@@ -598,15 +614,16 @@ enum {
     DEMO_BEACON = 3,
     DEMO_SHELL_ON = 4,
     DEMO_SHELL_OFF = 5,
-    DEMO_BANANA = 6
+    DEMO_BANANA = 6,
+    DEMO_OBSTACLE = 7
 };
 struct DemoStep {
     int wait;       // ticks to wait before firing this step
-    int action;     // DEMO_BEEP / DEMO_TONE_ON / DEMO_TONE_OFF / DEMO_BEACON / DEMO_SHELL_* / DEMO_BANANA
+    int action;     // DEMO_BEEP / DEMO_TONE_ON / DEMO_TONE_OFF / DEMO_BEACON / DEMO_SHELL_* / DEMO_BANANA / DEMO_OBSTACLE
     CueBeep beep;
     float pitch;
     float pan;
-    float volume;   // DEMO_BEACON / DEMO_SHELL_ON / DEMO_BANANA only (other demos leave it 0)
+    float volume;   // DEMO_BEACON / DEMO_SHELL_ON / DEMO_BANANA / DEMO_OBSTACLE only (other demos leave it 0)
 };
 
 // Approach: three rising beeps counting down to the curve (DriveAssist kPitches).
@@ -668,6 +685,17 @@ const DemoStep kBananaDemo[] = {
     { 18, DEMO_BANANA, CueBeep::Approach, 1.00f,  0.0f, 0.90f }, // right next to it
     { 18, DEMO_BANANA, CueBeep::Approach, 0.85f,  0.4f, 0.70f }, // just passed it: lower, behind
     { 18, DEMO_BANANA, CueBeep::Approach, 0.72f,  0.3f, 0.45f }, // receding behind
+};
+
+// Obstacle warning: a fast (~200 ms) blip closing in on a hazard from one side, growing
+// loud right as it is on top of you, then dropping in pitch and fading as it falls behind
+// (you got past it). Fields are pitch, pan, volume; tighter spacing than the other beacons.
+const DemoStep kObstacleDemo[] = {
+    { 0, DEMO_OBSTACLE, CueBeep::Approach, 1.00f, -0.6f, 0.45f }, // closing from ahead-left
+    { 6, DEMO_OBSTACLE, CueBeep::Approach, 1.00f, -0.3f, 0.70f }, // closer
+    { 6, DEMO_OBSTACLE, CueBeep::Approach, 1.00f,  0.0f, 0.95f }, // about to hit it
+    { 6, DEMO_OBSTACLE, CueBeep::Approach, 0.85f,  0.4f, 0.70f }, // got past it: lower, behind
+    { 6, DEMO_OBSTACLE, CueBeep::Approach, 0.72f,  0.3f, 0.45f }, // receding behind
 };
 
 } // namespace
@@ -828,6 +856,9 @@ class SettingsMenu {
             case DEMO_BANANA:
                 AudioCueService::Instance().PlayBananaBeacon(s.pan, s.volume, s.pitch);
                 break;
+            case DEMO_OBSTACLE:
+                AudioCueService::Instance().PlayObstacleBeacon(s.pan, s.volume, s.pitch);
+                break;
         }
         mDemoIndex++;
         if (mDemoIndex >= mDemoLen) {
@@ -853,6 +884,7 @@ class SettingsMenu {
             case kCueItemBox:  mDemo = kItemBoxDemo;  mDemoLen = ARRAY_LEN(kItemBoxDemo);  break;
             case kCueShell:    mDemo = kShellDemo;    mDemoLen = ARRAY_LEN(kShellDemo);    break;
             case kCueBanana:   mDemo = kBananaDemo;   mDemoLen = ARRAY_LEN(kBananaDemo);   break;
+            case kCueObstacle: mDemo = kObstacleDemo; mDemoLen = ARRAY_LEN(kObstacleDemo); break;
             default:           return; // no example for this entry
         }
         mDemoIndex = 0;
