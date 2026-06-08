@@ -2,12 +2,19 @@
 
 #include "ScreenReaderService.h"
 #include "AccessibilityStrings.h"
+#include "TimeFormat.h"
+
+#include <libultraship.h> // pull the C++ headers in before the extern "C" block below
 
 #include <cstdint>
 #include <string>
 
 extern "C" {
-#include <defines.h> // GRAND_PRIX, TIME_TRIALS, VERSUS, BATTLE
+#include <defines.h>        // GRAND_PRIX, TIME_TRIALS, VERSUS, BATTLE
+#include <common_structs.h> // hud_player
+// Per-player HUD state; playerHUD[0] holds player one's lap durations (centiseconds, at
+// lapDurations[0..2]) and total time (someTimer) - the same fields the finish screen draws.
+extern hud_player playerHUD[];
 }
 
 // In-race menu game state. Declared locally (like RaceNarrator's externs) to keep
@@ -181,6 +188,25 @@ std::string PauseNarrator::EndCourseOption() const {
     return "";
 }
 
+bool PauseNarrator::TimeTrialFinishActive() const {
+    const AccessMenuItem* tt = find_menu_items(kMenuItemTimeTrialEnd);
+    return tt != nullptr && tt->state >= kTimeTrialEndMin && tt->state <= kTimeTrialEndMax;
+}
+
+std::string PauseNarrator::TimeTrialResults() const {
+    std::string out;
+    for (int lap = 0; lap < 3; ++lap) {
+        out += TT_RESULT_LAP;
+        out += std::to_string(lap + 1);
+        out += ", ";
+        out += FormatRaceTime(playerHUD[0].lapDurations[lap]); // player one; centiseconds
+        out += ". ";
+    }
+    out += TT_RESULT_TOTAL;
+    out += FormatRaceTime(playerHUD[0].someTimer);
+    return out;
+}
+
 bool PauseNarrator::MenuActive() const {
     if (gIsGamePaused != 0) {
         return true;
@@ -224,10 +250,20 @@ void PauseNarrator::Tick(ScreenReaderService& reader) {
             return; // menu closed
         }
 
-        std::string message = (kind == 1) ? PAUSE_MENU : PAUSE_END_MENU;
-        if (!option.empty()) {
-            message += ". ";
-            message += option;
+        std::string message;
+        if (kind == 2 && TimeTrialFinishActive()) {
+            // Just finished a Time Trial: read the lap times, then the highlighted option.
+            message = TimeTrialResults();
+            if (!option.empty()) {
+                message += ". ";
+                message += option;
+            }
+        } else {
+            message = (kind == 1) ? PAUSE_MENU : PAUSE_END_MENU;
+            if (!option.empty()) {
+                message += ". ";
+                message += option;
+            }
         }
         reader.Speak(message, true);
         return;

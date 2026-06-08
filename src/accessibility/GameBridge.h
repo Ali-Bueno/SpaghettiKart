@@ -64,4 +64,15 @@ extern int32_t gModeSelection;
 extern int32_t gCCSelection;
 // Grand Prix trophy earned for (cup, cc): 0 none, 1 bronze, 2 silver, 3 gold. (save.c)
 uint8_t func_800B54C0(int32_t cup, int32_t cc_mode);
+
+// --- Time Trial data / records screen ---
+// Highlighted course on the Data menu (0..15, cup-major: index/4 = cup, %4 = course).
+extern int8_t gTimeTrialDataCourseIndex;
+// Highlighted option on the Course Data screen (0 Return, 1 Erase records, 2 Erase ghost).
+extern int8_t gCourseRecordsMenuSelection;
+// A saved Time Trial record value for a course: low 20 bits (& 0xFFFFF) = centiseconds,
+// top nibble (>> 20) = the character id that set it (8 = no record). func_800B4EB4 returns
+// the Nth-best 3-lap record, func_800B4FB0 the best single-lap record. (save.c)
+uint32_t func_800B4EB4(int32_t recordType, int32_t courseIndex);
+int32_t func_800B4FB0(int32_t courseIndex);
 }

@@ -33,6 +33,12 @@ class PauseNarrator {
     // Current option for whichever menu is active; sets *kind (0 none, 1 pause,
     // 2 end-course).
     std::string CurrentOption(int* kind) const;
+    // True while the Time Trial finish option menu (0xBA) is up - used to read the lap
+    // times when that screen opens (other modes' finish menus have no lap-time results).
+    bool TimeTrialFinishActive() const;
+    // Spoken lap times for the just-finished Time Trial: "Lap 1, t. Lap 2, t. Lap 3, t.
+    // Total, t".
+    std::string TimeTrialResults() const;
 
     int mLastKind = 0;
     std::string mLastAnnouncement;

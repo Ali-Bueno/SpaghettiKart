@@ -26,7 +26,11 @@ class MenuNarrator {
     const char* ScreenName(int screen) const;
     // Label for the currently highlighted item on the given screen, or "" if none.
     std::string BuildItemAnnouncement(int screen) const;
+    // Spoken summary of the selected course's records on the Course Data screen:
+    // "<track>. Best time <t> by <char>. Best lap <t> by <char>".
+    std::string CourseDataSummary() const;
 
     int mLastScreen = -1;
     std::string mLastAnnouncement;
+    int mLastCourseIndex = -1; // last Course Data course read, so a course change re-reads records
 };

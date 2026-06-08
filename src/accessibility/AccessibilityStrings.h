@@ -73,6 +73,18 @@ inline constexpr const char* GHOST_SLOT_PREFIX = "Save ghost, slot ";
 inline constexpr const char* GHOST_OVERWRITE_NO = "Overwrite ghost? No";
 inline constexpr const char* GHOST_OVERWRITE_YES = "Overwrite ghost? Yes";
 
+// Time Trial data / records screen (the "Data" menu). Option cursor, indexed by
+// gCourseRecordsMenuSelection (0 Return, 1 Erase records, 2 Erase ghost).
+inline constexpr const char* COURSE_DATA_OPTIONS[3] = { "Return", "Erase records", "Erase ghost" };
+inline constexpr const char* RECORD_BEST_TIME = "Best time, ";
+inline constexpr const char* RECORD_BEST_LAP = "Best lap, ";
+inline constexpr const char* RECORD_NONE = "no record"; // shown as dashes for an unset record
+inline constexpr const char* RECORD_BY = ", by "; // joins a time to the character who set it
+
+// Time Trial finish results (the lap times spoken when the finish menu opens).
+inline constexpr const char* TT_RESULT_LAP = "Lap "; // + "1, " + time
+inline constexpr const char* TT_RESULT_TOTAL = "Total, ";
+
 // Pause menu.
 inline constexpr const char* PAUSE_MENU = "Paused";
 // End-of-course / replay options menu (after a Time Trial, and replay pause).

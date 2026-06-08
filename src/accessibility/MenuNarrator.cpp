@@ -3,7 +3,9 @@
 #include "GameBridge.h"
 #include "ScreenReaderService.h"
 #include "AccessibilityStrings.h"
+#include "TimeFormat.h"
 
+#include <cstdint>
 #include <string>
 
 #include <defines.h>
@@ -48,11 +50,28 @@ enum {
 // menus.c, so the mapping is reproduced here.
 const int kGridToCharacter[8] = { MARIO, LUIGI, PEACH, TOAD, YOSHI, DK, WARIO, BOWSER };
 
+// Decode a saved Time Trial record value (low 20 bits = centiseconds, top nibble =
+// character id) into a spoken phrase, e.g. "1 minute 45.07, by Mario", or "no record".
+std::string RecordPhrase(uint32_t value) {
+    const uint32_t cs = value & 0xFFFFF;
+    if (cs >= kNoRecordTime) {
+        return RECORD_NONE;
+    }
+    std::string phrase = FormatRaceTime(cs);
+    const uint32_t character = value >> 20;
+    if (character < 8) {
+        phrase += RECORD_BY;
+        phrase += CHARACTERS[character];
+    }
+    return phrase;
+}
+
 } // namespace
 
 void MenuNarrator::Reset() {
     mLastScreen = -1;
     mLastAnnouncement.clear();
+    mLastCourseIndex = -1;
 }
 
 const char* MenuNarrator::ScreenName(int screen) const {
@@ -222,22 +241,92 @@ std::string MenuNarrator::BuildItemAnnouncement(int screen) const {
                     return "";
             }
         }
+        case DATA_MENU: {
+            // The Data screen is a course grid; gTimeTrialDataCourseIndex (0-15, cup-major)
+            // is the highlighted course. Resolve its track name the same way the screen does.
+            const int idx = gTimeTrialDataCourseIndex;
+            if (idx >= 0 && idx < 16) {
+                const int track = gCupCourseOrder[idx / 4][idx % 4];
+                if (track >= 0 && track < 20) {
+                    return TRACKS[track];
+                }
+            }
+            return "";
+        }
+        case COURSE_DATA_MENU: {
+            // The records screen's cursor (gCourseRecordsMenuSelection) sits on the option
+            // list; the records themselves are read by CourseDataSummary() on entry / course
+            // change.
+            const int opt = gCourseRecordsMenuSelection;
+            if (opt >= 0 && opt < 3) {
+                return COURSE_DATA_OPTIONS[opt];
+            }
+            return "";
+        }
         default:
             return "";
     }
+}
+
+std::string MenuNarrator::CourseDataSummary() const {
+    const int idx = gTimeTrialDataCourseIndex;
+    if (idx < 0 || idx >= 16) {
+        return "";
+    }
+    std::string out;
+    const int track = gCupCourseOrder[idx / 4][idx % 4];
+    if (track >= 0 && track < 20) {
+        out = TRACKS[track];
+        out += ". ";
+    }
+    out += RECORD_BEST_TIME;
+    out += RecordPhrase(func_800B4EB4(0, idx)); // best (rank 1) 3-lap record
+    out += ". ";
+    out += RECORD_BEST_LAP;
+    out += RecordPhrase(static_cast<uint32_t>(func_800B4FB0(idx))); // best single lap
+    return out;
 }
 
 void MenuNarrator::Tick(ScreenReaderService& reader) {
     const int screen = gMenuSelection;
     std::string item = BuildItemAnnouncement(screen);
 
-    // Screen changed: announce the screen name and the current item.
+    // Screen changed: announce the screen name and the current item. On the Course Data
+    // screen also read the selected course's records.
     if (screen != mLastScreen) {
         mLastScreen = screen;
         mLastAnnouncement = item;
+        mLastCourseIndex = gTimeTrialDataCourseIndex;
 
         const char* name = ScreenName(screen);
         std::string message = (name != nullptr) ? name : "";
+        if (screen == COURSE_DATA_MENU) {
+            const std::string records = CourseDataSummary();
+            if (!records.empty()) {
+                if (!message.empty()) {
+                    message += ". ";
+                }
+                message += records;
+            }
+        }
+        if (!item.empty()) {
+            if (!message.empty()) {
+                message += ". ";
+            }
+            message += item;
+        }
+        if (!message.empty()) {
+            reader.Speak(message, true);
+        }
+        return;
+    }
+
+    // Course Data: the selected course can change in place (L / R), so re-read its records
+    // (and the current option) even though the screen and option cursor did not change.
+    if (screen == COURSE_DATA_MENU && gTimeTrialDataCourseIndex != mLastCourseIndex) {
+        mLastCourseIndex = gTimeTrialDataCourseIndex;
+        mLastAnnouncement = item;
+        std::string message = CourseDataSummary();
         if (!item.empty()) {
             if (!message.empty()) {
                 message += ". ";
