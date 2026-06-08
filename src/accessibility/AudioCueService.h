@@ -43,14 +43,21 @@ class AudioCueService {
     // Cut any in-progress beacon blip (e.g. when the box is collected or the race ends).
     void StopItemBoxBeacon();
 
-    // Looping whoosh for a shell in flight (thrown by anyone), on its own channel so it can
-    // overlap the cue beeps and the item-box beacon. on=true starts the loop once and then
-    // just steers its pan/volume/pitch each frame; on=false stops it. Idempotent, same
+    // Looping whoosh for a green / blue shell in flight (thrown by anyone), on its own channel
+    // so it can overlap the cue beeps and the item-box beacon. on=true starts the loop once and
+    // then just steers its pan/volume/pitch each frame; on=false stops it. Idempotent, same
     // Doppler/pan model as the item-box beacon. Loads SE_ITM_KAME_G_MOVE.wav on first use;
     // a no-op if that file is missing.
     void SetShellLoop(bool on, float pan, float volume, float pitch);
-    // Stop the shell loop (e.g. when no shell is moving or the race ends).
+    // Stop the green / blue shell loop (e.g. when no such shell is moving or the race ends).
     void StopShellLoop();
+
+    // Looping whoosh for a red shell in flight, on its own channel so it overlaps (and is
+    // distinct from) the green/blue shell loop. Same behavior as SetShellLoop, but a separate
+    // sound (SE_ITM_KAME_R_MOVE.wav) so the homing red shell is recognizable by ear.
+    void SetShellRedLoop(bool on, float pan, float volume, float pitch);
+    // Stop the red shell loop (e.g. when no red shell is moving or the race ends).
+    void StopShellRedLoop();
 
     // One-shot hazard blip toward a banana resting on the track, on its own channel.
     // pan -1..+1, volume 0..1, pitch multiplies the base frequency (lower once the banana
@@ -67,7 +74,14 @@ class AudioCueService {
     bool EnsureInitialized();
     bool EnsureBeaconLoaded();
     bool EnsureShellLoaded();
+    bool EnsureShellRedLoaded();
     bool EnsureBananaLoaded();
+    // Drive a looping cue on its own channel: start it once when it turns on, then just steer
+    // pan/volume/pitch; stop it when it turns off. Shared by both shell loops. `ready` is the
+    // result of the matching Ensure* call (ignored when on=false); `playing` is the per-loop
+    // started flag.
+    void DriveLoop(int channel, int id, bool ready, bool& playing, bool on, float pan,
+                   float volume, float pitch);
     // Load a raw sound packed into spaghetti.o2r and register it with HMAS from memory.
     // The decoded bytes are referenced by miniaudio, so they are kept alive in keepAlive
     // (an AudioCueService member that lives for the whole session). Idempotent.
@@ -78,9 +92,12 @@ class AudioCueService {
     bool mEdgeTonePlaying = false; // whether the looping edge tone is currently playing
     bool mBeaconReady = false;     // whether the item-box beacon sound is loaded
     bool mBeaconLoadFailed = false; // file missing: don't keep retrying every frame
-    bool mShellReady = false;       // whether the spinning-shell loop sound is loaded
+    bool mShellReady = false;       // whether the green/blue spinning-shell loop sound is loaded
     bool mShellLoadFailed = false;  // file missing: don't keep retrying every frame
-    bool mShellLoopPlaying = false; // whether the looping shell whoosh is currently playing
+    bool mShellLoopPlaying = false; // whether the green/blue shell whoosh is currently playing
+    bool mShellRedReady = false;       // whether the red spinning-shell loop sound is loaded
+    bool mShellRedLoadFailed = false;  // file missing: don't keep retrying every frame
+    bool mShellRedLoopPlaying = false; // whether the red shell whoosh is currently playing
     bool mBananaReady = false;      // whether the grounded-banana hazard sound is loaded
     bool mBananaLoadFailed = false; // file missing: don't keep retrying every frame
 
@@ -90,7 +107,8 @@ class AudioCueService {
     std::vector<uint8_t> mCurveWav;
     std::vector<uint8_t> mEdgeWav;
     std::vector<uint8_t> mEdgeToneWav;
-    std::vector<uint8_t> mBeaconBytes; // item-box beacon WAV (from the archive)
-    std::vector<uint8_t> mShellBytes;  // spinning-shell loop WAV (from the archive)
-    std::vector<uint8_t> mBananaBytes; // grounded-banana WAV (from the archive)
+    std::vector<uint8_t> mBeaconBytes;  // item-box beacon WAV (from the archive)
+    std::vector<uint8_t> mShellBytes;   // green/blue spinning-shell loop WAV (from the archive)
+    std::vector<uint8_t> mShellRedBytes; // red spinning-shell loop WAV (from the archive)
+    std::vector<uint8_t> mBananaBytes;  // grounded-banana WAV (from the archive)
 };

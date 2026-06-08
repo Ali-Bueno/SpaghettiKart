@@ -23,20 +23,23 @@ constexpr HMAS_AudioId kEdgeToneId = 0x40ACCE54;
 constexpr HMAS_AudioId kItemBoxBeaconId = 0x40ACCE55;
 constexpr HMAS_AudioId kShellLoopId = 0x40ACCE56;
 constexpr HMAS_AudioId kBananaBeaconId = 0x40ACCE57;
+constexpr HMAS_AudioId kShellRedLoopId = 0x40ACCE58;
 // Curve-related cues and the edge cue live on separate channels so a continuous
 // edge tone never cuts the curve beeps (and vice versa). The game itself only
 // uses HMAS_MUSIC, so HMAS_ENV, HMAS_SFX and HMAS_ACCESS are free for our cues.
 constexpr HMAS_ChannelId kCurveChannel = HMAS_ENV;     // approach + curve-progress beeps
 constexpr HMAS_ChannelId kEdgeChannel = HMAS_SFX;      // edge beeps + held edge tone
 constexpr HMAS_ChannelId kBeaconChannel = HMAS_ACCESS; // item-box proximity beacon
-constexpr HMAS_ChannelId kShellChannel = HMAS_SHELL;   // spinning-shell loop
-constexpr HMAS_ChannelId kBananaChannel = HMAS_BANANA; // grounded-banana hazard blip
+constexpr HMAS_ChannelId kShellChannel = HMAS_SHELL;        // green/blue spinning-shell loop
+constexpr HMAS_ChannelId kShellRedChannel = HMAS_SHELL_RED; // red spinning-shell loop
+constexpr HMAS_ChannelId kBananaChannel = HMAS_BANANA;      // grounded-banana hazard blip
 
 // Sounds packed into spaghetti.o2r and loaded from the game archive (not loose files), so
 // players cannot swap them - keeping the authentic Nintendo-style cues intact. These are
 // the virtual paths inside the archive. Float/PCM WAV both work via miniaudio.
 constexpr char kItemBoxBeaconFile[] = "sounds/SE_ITM_BOX_BRK.wav";
 constexpr char kShellLoopFile[] = "sounds/SE_ITM_KAME_G_MOVE.wav";
+constexpr char kShellRedLoopFile[] = "sounds/SE_ITM_KAME_R_MOVE.wav";
 constexpr char kBananaBeaconFile[] = "sounds/SE_ITM_BANANA_GROUND.wav";
 
 constexpr int kSampleRate = 32000;
@@ -287,33 +290,53 @@ void AudioCueService::StopItemBoxBeacon() {
     GameEngine::Instance->gHMAS->Stop(kBeaconChannel);
 }
 
-bool AudioCueService::EnsureShellLoaded() {
-    return EnsureArchiveSound(mShellReady, mShellLoadFailed, kShellLoopId, kShellLoopFile, mShellBytes);
-}
-
-void AudioCueService::SetShellLoop(bool on, float pan, float volume, float pitch) {
+void AudioCueService::DriveLoop(int channel, int id, bool ready, bool& playing, bool on,
+                                float pan, float volume, float pitch) {
+    const HMAS_ChannelId ch = static_cast<HMAS_ChannelId>(channel);
     if (on) {
-        if (!EnsureShellLoaded()) {
+        if (!ready) {
             return;
         }
         HMAS* hmas = GameEngine::Instance->gHMAS;
         // Start the loop once (miniaudio repeats the whole file seamlessly), then just keep
         // steering its pan/volume/pitch as the shell flies around.
-        if (!mShellLoopPlaying) {
-            hmas->Play(kShellChannel, kShellLoopId, true);
-            mShellLoopPlaying = true;
+        if (!playing) {
+            hmas->Play(ch, id, true);
+            playing = true;
         }
-        hmas->SetPan(kShellChannel, std::clamp(pan, -1.0f, 1.0f));
-        hmas->SetVolume(kShellChannel, std::clamp(volume, 0.0f, 1.0f));
-        hmas->SetPitch(kShellChannel, std::clamp(pitch, 0.25f, 3.0f));
-    } else if (mShellLoopPlaying) {
-        GameEngine::Instance->gHMAS->Stop(kShellChannel);
-        mShellLoopPlaying = false;
+        hmas->SetPan(ch, std::clamp(pan, -1.0f, 1.0f));
+        hmas->SetVolume(ch, std::clamp(volume, 0.0f, 1.0f));
+        hmas->SetPitch(ch, std::clamp(pitch, 0.25f, 3.0f));
+    } else if (playing) {
+        GameEngine::Instance->gHMAS->Stop(ch);
+        playing = false;
     }
+}
+
+bool AudioCueService::EnsureShellLoaded() {
+    return EnsureArchiveSound(mShellReady, mShellLoadFailed, kShellLoopId, kShellLoopFile, mShellBytes);
+}
+
+void AudioCueService::SetShellLoop(bool on, float pan, float volume, float pitch) {
+    DriveLoop(kShellChannel, kShellLoopId, on && EnsureShellLoaded(), mShellLoopPlaying, on, pan, volume, pitch);
 }
 
 void AudioCueService::StopShellLoop() {
     SetShellLoop(false, 0.0f, 0.0f, 1.0f);
+}
+
+bool AudioCueService::EnsureShellRedLoaded() {
+    return EnsureArchiveSound(mShellRedReady, mShellRedLoadFailed, kShellRedLoopId, kShellRedLoopFile,
+                              mShellRedBytes);
+}
+
+void AudioCueService::SetShellRedLoop(bool on, float pan, float volume, float pitch) {
+    DriveLoop(kShellRedChannel, kShellRedLoopId, on && EnsureShellRedLoaded(), mShellRedLoopPlaying, on, pan,
+              volume, pitch);
+}
+
+void AudioCueService::StopShellRedLoop() {
+    SetShellRedLoop(false, 0.0f, 0.0f, 1.0f);
 }
 
 bool AudioCueService::EnsureBananaLoaded() {
