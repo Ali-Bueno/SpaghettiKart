@@ -1,5 +1,21 @@
 # Changelog — Super Blind Kart
 
+## Changes on 08/06/2026
+
+### New
+- **Red shell flying sound.** The red shell now has its own distinct sound while it flies,
+  separate from the green and blue shells, so you can recognise the homing red shell by ear.
+- **Obstacle collision warning.** A fast pulsing cue warns you when you are on a collision
+  course with a moving obstacle — oncoming traffic, a falling rock, the train, a paddle boat,
+  a cow, a piranha plant — panned toward it so you can steer away. It only fires for a head-on
+  or near head-on hit, not for a hazard you will pass on the side. Toggle, range and loop-speed
+  sliders, and a demo in the accessibility menu.
+- **Time Trial results read aloud.** When you finish a Time Trial, your three lap times and
+  total time are announced.
+- **Data menu accessible.** The Time Trial Data menu now reads the selected course as you
+  browse it, and on a course's records screen reads the best time and best lap, with the
+  character who set each.
+
 ## Changes on 05/06/2026
 
 ### New
