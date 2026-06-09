@@ -55,14 +55,22 @@ constexpr int kCurveGapPoints = 3;             // straight points tolerated insi
 constexpr int kCurveMinPoints = 1;             // shortest curve kept, in points
 constexpr float kCurveMinAngleDeg = 15.0f;     // shortest curve kept, in total heading change
 
-// Severity grading, primarily from the PEAK curvature in the curve (the game's own measure:
-// it classifies |curvature| > 0.10 as a strong curve). Grading by the PEAK - not an average -
-// is what catches a tight section hidden inside an otherwise gentle curve, which was being
-// mis-called "easy" (and crashed into). Total heading change promotes a strong sustained turn
-// to a hairpin.
-constexpr float kStrongCurv = 0.10f;       // peak >= this: at least "Hard" (tight)
-constexpr float kModerateCurv = 0.07f;     // peak >= this (but below strong): "Normal"; below: "Easy"
-constexpr float kHairpinAngleDeg = 120.0f; // a strong curve turning this much overall: "Hairpin"
+// Severity grading from the PEAK curvature in the curve (the game's own measure). Grading by the
+// PEAK - not an average - catches a tight section hidden inside an otherwise gentle curve, which
+// would otherwise be mis-called "easy" (and crashed into).
+//
+// Thresholds CALIBRATED from an offline audit of all 16 stock tracks' real waypoints: the old
+// 0.10/0.07 cut-offs sat at the very floor of the metric (the gentlest sweeper in the game peaks
+// at ~0.10), so 176 of 178 curves graded "Hard"/"Hairpin" and the call carried almost no
+// information - a gentle 24-deg sweeper and a 230-deg hairpin both said "Hard". These cut-offs
+// spread the field to match the geometry (verified per-track: e.g. Toad's Turnpike -> mostly Easy,
+// Bowser's Castle -> mostly Hairpin). A Hairpin must be genuinely tight (peak >= kHardCurv) AND
+// turn a lot overall, or be extremely tight on its own (kHairpinCurv) - so a long but gentle sweep
+// is no longer mislabelled a hairpin.
+constexpr float kNormalCurv = 0.16f;       // peak >= this (but below hard): "Normal"; below: "Easy"
+constexpr float kHardCurv = 0.32f;         // peak >= this: "Hard" (tight)
+constexpr float kHairpinCurv = 0.55f;      // peak >= this alone: "Hairpin" (very tight)
+constexpr float kHairpinAngleDeg = 120.0f; // a Hard curve turning this much overall: "Hairpin"
 constexpr float kLongWidths = 9.0f;        // arc length >= this * track width => "Long"
 
 // Announce / approach / clearance distances, expressed in average-point-spacings so the
@@ -229,11 +237,14 @@ void DriveAssist::RebuildCurveMap(int pathIndex, int count) {
         const int mid = (entry + steps / 2) % count;
 
         // Severity from the PEAK curvature so a tight section inside the curve is not averaged
-        // away. A strong sustained turn (big total angle) is a hairpin.
+        // away. A hairpin is a curve that is BOTH tight and turns a lot overall (or is extremely
+        // tight on its own) - a long but gentle sweep stays Easy/Normal, not a hairpin.
         Severity sev;
-        if (peak >= kStrongCurv) {
-            sev = (angleDeg >= kHairpinAngleDeg) ? Severity::Hairpin : Severity::Hard;
-        } else if (peak >= kModerateCurv) {
+        if (peak >= kHairpinCurv || (peak >= kHardCurv && angleDeg >= kHairpinAngleDeg)) {
+            sev = Severity::Hairpin;
+        } else if (peak >= kHardCurv) {
+            sev = Severity::Hard;
+        } else if (peak >= kNormalCurv) {
             sev = Severity::Normal;
         } else {
             sev = Severity::Easy;
