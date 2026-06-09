@@ -68,6 +68,16 @@
 // Obstacle cue loop time in milliseconds: how often the blip repeats while a collision is
 // imminent (the pulse rate). Lower = faster / more urgent. Default 100 ms.
 #define CVAR_ACCESS_OBSTACLE_INTERVAL "gAccessibility.ObstacleInterval"
+// Shortcut cue: a bright beep that guides into and along a track's known shortcuts, derived
+// from the game's own course path data (on Koopa Troopa Beach both the water cut and the cave,
+// on Wario Stadium the wall-jump launch spot). It rises as you near the entrance, keeps leading
+// a point ahead while you ride the shortcut, and rings a short chord coming out the far end
+// (or on Wario's launch spot). Audio-only.
+#define CVAR_ACCESS_SHORTCUT_CUE "gAccessibility.ShortcutCue"
+// Multi-path fork warning (Yoshi Valley only): speaks an advance heads-up once per lap a little
+// before the kart reaches the four-way fork, so a blind player knows the split is coming. Makes
+// no sound and does not change steering - the player navigates the split with the engine pan.
+#define CVAR_ACCESS_MULTIPATH_CUE "gAccessibility.MultiPathCue"
 // Rival-kart engine volume scale (0..1): lowered by default so a blind player can
 // pick out their own kart over the pack. Applied live in src/audio/external.c.
 #define CVAR_ACCESS_RIVAL_VOLUME "gAccessibility.RivalKartVolume"
@@ -109,6 +119,8 @@
 #define CVAR_ACCESS_OBSTACLE_CUE_DEFAULT 1
 #define CVAR_ACCESS_OBSTACLE_RANGE_DEFAULT 50
 #define CVAR_ACCESS_OBSTACLE_INTERVAL_DEFAULT 100
+#define CVAR_ACCESS_SHORTCUT_CUE_DEFAULT 1
+#define CVAR_ACCESS_MULTIPATH_CUE_DEFAULT 1
 
 // Recommended starting volumes (0..1) seeded once on first run. Testers reported they
 // follow the audio cues better with the music and rival karts a little quieter.

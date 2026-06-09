@@ -85,6 +85,8 @@ void AccessibilityManager::Tick() {
         mShellTracker.Reset();
         mBananaBeacon.Reset();
         mObstacleBeacon.Reset();
+        mShortcutBeacon.Reset();
+        mMultiPathGuide.Reset();
         return;
     }
 
@@ -112,6 +114,8 @@ void AccessibilityManager::Tick() {
             mShellTracker.Reset();
             mBananaBeacon.Reset();
             mObstacleBeacon.Reset();
+            mShortcutBeacon.Reset();
+            mMultiPathGuide.Reset();
         } else if (mPauseNarrator.MenuActive()) {
             // An in-race overlay menu is up (pause, or the end-course/replay menu):
             // silence the driving cues and narrate the menu.
@@ -121,6 +125,8 @@ void AccessibilityManager::Tick() {
             mShellTracker.Reset();
             mBananaBeacon.Reset();
             mObstacleBeacon.Reset();
+            mShortcutBeacon.Reset();
+            mMultiPathGuide.Reset();
             if (CVarGetInteger(CVAR_ACCESS_MENU_NARRATION, CVAR_ACCESS_MENU_NARRATION_DEFAULT) != 0) {
                 mPauseNarrator.Tick(reader);
             }
@@ -136,21 +142,30 @@ void AccessibilityManager::Tick() {
             // During the start intro/countdown and after crossing the line the kart still
             // exists but is not being raced, so the cues stay silent.
             if (gRaceState == RACE_IN_PROGRESS) {
+                // The shortcut beacon ticks first: while it is leading the kart along a
+                // shortcut it hands the steering guide a target on the shortcut line, so the
+                // engine pan and the beacon never pull in opposite directions.
+                mShortcutBeacon.Tick(reader); // has its own toggle (CVAR_ACCESS_SHORTCUT_CUE)
                 if (CVarGetInteger(CVAR_ACCESS_DRIVE_ASSIST, CVAR_ACCESS_DRIVE_ASSIST_DEFAULT) != 0) {
-                    mDriveAssist.Tick(reader);
+                    float steerTarget[3];
+                    mDriveAssist.Tick(reader,
+                                      mShortcutBeacon.SteerTarget(steerTarget) ? steerTarget : nullptr);
                 } else {
                     mDriveAssist.Reset();
                 }
-                mItemBoxBeacon.Tick();  // has its own toggle (CVAR_ACCESS_ITEMBOX_CUE)
-                mShellTracker.Tick();   // has its own toggle (CVAR_ACCESS_SHELL_CUE)
-                mBananaBeacon.Tick();   // has its own toggle (CVAR_ACCESS_BANANA_CUE)
-                mObstacleBeacon.Tick(); // has its own toggle (CVAR_ACCESS_OBSTACLE_CUE)
+                mItemBoxBeacon.Tick();   // has its own toggle (CVAR_ACCESS_ITEMBOX_CUE)
+                mShellTracker.Tick();    // has its own toggle (CVAR_ACCESS_SHELL_CUE)
+                mBananaBeacon.Tick();    // has its own toggle (CVAR_ACCESS_BANANA_CUE)
+                mObstacleBeacon.Tick();  // has its own toggle (CVAR_ACCESS_OBSTACLE_CUE)
+                mMultiPathGuide.Tick(reader); // has its own toggle (CVAR_ACCESS_MULTIPATH_CUE)
             } else {
                 mDriveAssist.Reset();
                 mItemBoxBeacon.Reset();
                 mShellTracker.Reset();
                 mBananaBeacon.Reset();
                 mObstacleBeacon.Reset();
+                mShortcutBeacon.Reset();
+                mMultiPathGuide.Reset();
             }
         }
     } else if (gGamestate != ENDING && gGamestate != CREDITS_SEQUENCE) {
@@ -164,6 +179,8 @@ void AccessibilityManager::Tick() {
             mShellTracker.Reset();
             mBananaBeacon.Reset();
             mObstacleBeacon.Reset();
+            mShortcutBeacon.Reset();
+            mMultiPathGuide.Reset();
         }
         if (CVarGetInteger(CVAR_ACCESS_MENU_NARRATION, CVAR_ACCESS_MENU_NARRATION_DEFAULT) != 0) {
             mMenuNarrator.Tick(reader);
@@ -178,6 +195,8 @@ void AccessibilityManager::Tick() {
         mShellTracker.Reset();
         mBananaBeacon.Reset();
         mObstacleBeacon.Reset();
+        mShortcutBeacon.Reset();
+        mMultiPathGuide.Reset();
         if (gGamestate == ENDING &&
             CVarGetInteger(CVAR_ACCESS_MENU_NARRATION, CVAR_ACCESS_MENU_NARRATION_DEFAULT) != 0) {
             mPostRaceNarrator.Tick(reader);

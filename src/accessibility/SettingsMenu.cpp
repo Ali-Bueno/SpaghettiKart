@@ -46,6 +46,8 @@ constexpr int kCueShell = 5;
 constexpr int kCueBanana = 6;
 constexpr int kCueObstacle = 7;
 constexpr int kCueShellRed = 8;
+constexpr int kCueShortcut = 9;
+constexpr int kCueFork = 10;
 
 // Game-input block id used while capturing a control rebind (arbitrary, unique).
 constexpr int kRebindBlockId = 0x52424E44; // 'RBND'
@@ -199,6 +201,10 @@ const Option kAccessibility[] = {
       .asPercent = true },
     { .label = "Obstacle loop time", .kind = OptKind::IntSlider, .cvar = CVAR_ACCESS_OBSTACLE_INTERVAL,
       .idefault = CVAR_ACCESS_OBSTACLE_INTERVAL_DEFAULT, .fmin = 50, .fmax = 500, .fstep = 25, .unit = "ms" },
+    { .label = "Shortcut cue", .kind = OptKind::Toggle, .cvar = CVAR_ACCESS_SHORTCUT_CUE,
+      .idefault = CVAR_ACCESS_SHORTCUT_CUE_DEFAULT },
+    { .label = "Yoshi fork warning", .kind = OptKind::Toggle, .cvar = CVAR_ACCESS_MULTIPATH_CUE,
+      .idefault = CVAR_ACCESS_MULTIPATH_CUE_DEFAULT },
     // Help entries: focus to hear the name, press A to hear how that cue works.
     { .label = "Help: steering guide", .kind = OptKind::Info,
       .help = "The engine sound leans left or right toward the way you should steer to follow the racing "
@@ -261,6 +267,24 @@ const Option kAccessibility[] = {
               "the cue starts, and obstacle loop time how fast it pulses (lower is faster). Press Z to hear "
               "an example.",
       .cueExample = kCueObstacle },
+    { .label = "Help: shortcut cue", .kind = OptKind::Info,
+      .help = "On tracks with a known shortcut, a voice announces it shortly before the entrance - "
+              "shortcut ahead, left or right. Keep driving the road as normal: the entrance is on the "
+              "road. Right at it, the two-note chord rings once and the engine pan, the same steering "
+              "sound you always drive by, switches to the shortcut's own racing line and leads you all "
+              "the way through, with a beep ticking faster and higher as you progress. The chord rings "
+              "again at the far end. If you stay on the main road instead, it goes quiet until the next "
+              "lap. On Wario Stadium the beep marks the spot where the lap's overpass crosses above the "
+              "road: the chord rings right under it - climb the banked wall there to land on top - and "
+              "rings again when you make it. Press Z to hear an example.",
+      .cueExample = kCueShortcut },
+    { .label = "Help: Yoshi fork warning", .kind = OptKind::Info,
+      .help = "Yoshi Valley splits into four routes in the middle. A little before you reach the split, a "
+              "centered chord sounds and a voice says fork ahead, four routes, so you know it is coming even "
+              "if the speech is hard to hear over the noise. The chord is centered, not panned, so it does "
+              "not fight the steering guide - you then steer the split with the normal engine pan, which "
+              "follows whichever route you take. It only plays on Yoshi Valley. Press Z to hear it.",
+      .cueExample = kCueFork },
     { .label = "Help: off-road cue", .kind = OptKind::Info,
       .help = "A voice says off road when you leave the track, and on road when you return." },
 };
@@ -624,7 +648,10 @@ enum {
     DEMO_BANANA = 6,
     DEMO_OBSTACLE = 7,
     DEMO_SHELL_RED_ON = 8,
-    DEMO_SHELL_RED_OFF = 9
+    DEMO_SHELL_RED_OFF = 9,
+    DEMO_SHORTCUT_BEEP = 10,
+    DEMO_SHORTCUT_HIT = 11,
+    DEMO_FORK = 12
 };
 struct DemoStep {
     int wait;       // ticks to wait before firing this step
@@ -716,6 +743,22 @@ const DemoStep kObstacleDemo[] = {
     { 6, DEMO_OBSTACLE, CueBeep::Approach, 1.00f,  0.0f, 0.95f }, // about to hit it
     { 6, DEMO_OBSTACLE, CueBeep::Approach, 0.85f,  0.4f, 0.70f }, // got past it: lower, behind
     { 6, DEMO_OBSTACLE, CueBeep::Approach, 0.72f,  0.3f, 0.45f }, // receding behind
+};
+
+// Shortcut / route guide: a bright beep leaning toward the entry, speeding up and rising in
+// pitch as you near it, then the two-note "take it now" chord while you are on the spot.
+const DemoStep kShortcutDemo[] = {
+    { 0,  DEMO_SHORTCUT_BEEP, CueBeep::Approach, 0.90f, -0.6f },
+    { 14, DEMO_SHORTCUT_BEEP, CueBeep::Approach, 1.10f, -0.4f },
+    { 10, DEMO_SHORTCUT_BEEP, CueBeep::Approach, 1.35f, -0.2f },
+    { 6,  DEMO_SHORTCUT_BEEP, CueBeep::Approach, 1.60f,  0.0f },
+    { 4,  DEMO_SHORTCUT_HIT,  CueBeep::Approach, 1.00f,  0.0f }, // on the spot: chord
+    { 9,  DEMO_SHORTCUT_HIT,  CueBeep::Approach, 1.00f,  0.0f },
+};
+
+// Yoshi fork warning: the single centered alert chord (never panned).
+const DemoStep kForkDemo[] = {
+    { 0, DEMO_FORK, CueBeep::Approach, 1.00f, 0.0f },
 };
 
 } // namespace
@@ -885,6 +928,15 @@ class SettingsMenu {
             case DEMO_OBSTACLE:
                 AudioCueService::Instance().PlayObstacleBeacon(s.pan, s.volume, s.pitch);
                 break;
+            case DEMO_SHORTCUT_BEEP:
+                AudioCueService::Instance().PlayShortcutBeep(s.pitch, s.pan);
+                break;
+            case DEMO_SHORTCUT_HIT:
+                AudioCueService::Instance().PlayShortcutHit(s.pan);
+                break;
+            case DEMO_FORK:
+                AudioCueService::Instance().PlayForkAlert();
+                break;
         }
         mDemoIndex++;
         if (mDemoIndex >= mDemoLen) {
@@ -912,6 +964,8 @@ class SettingsMenu {
             case kCueShellRed: mDemo = kShellRedDemo; mDemoLen = ARRAY_LEN(kShellRedDemo); break;
             case kCueBanana:   mDemo = kBananaDemo;   mDemoLen = ARRAY_LEN(kBananaDemo);   break;
             case kCueObstacle: mDemo = kObstacleDemo; mDemoLen = ARRAY_LEN(kObstacleDemo); break;
+            case kCueShortcut: mDemo = kShortcutDemo; mDemoLen = ARRAY_LEN(kShortcutDemo); break;
+            case kCueFork:     mDemo = kForkDemo;     mDemoLen = ARRAY_LEN(kForkDemo);     break;
             default:           return; // no example for this entry
         }
         mDemoIndex = 0;

@@ -76,6 +76,23 @@ class AudioCueService {
     // Cut any in-progress obstacle blip (e.g. when nothing is in range or the race ends).
     void StopObstacleBeacon();
 
+    // One-shot guidance beep toward a shortcut entrance or the recommended fork route, on its
+    // own channel. A bright procedural tone (no game sound), panned toward the target and rising
+    // in pitch as you near it. pan -1..+1, pitch multiplies the base frequency. Used by both the
+    // ShortcutBeacon (fixed shortcuts) and the Yoshi Valley MultiPathGuide (fork routing).
+    void PlayShortcutBeep(float pitch, float pan);
+    // One-shot "take it now" chord (a perfect fifth) played repeatedly while the kart sits right
+    // on a shortcut entry, so it reads clearly as "you are on the spot". pan -1..+1.
+    void PlayShortcutHit(float pan);
+    // Cut any in-progress shortcut / route guidance cue (e.g. out of range or the race ends).
+    void StopShortcutCue();
+
+    // One-shot CENTERED fork alert (the same chord, on its own channel and never panned): a
+    // non-directional "fork ahead" beep for Yoshi Valley, played alongside the spoken heads-up so
+    // the cue still lands if the speech is masked by engine/race noise. Centered on purpose - a
+    // panned route cue competed with the engine-pan steering guide and confused the player.
+    void PlayForkAlert();
+
   private:
     AudioCueService() = default;
 
@@ -85,6 +102,8 @@ class AudioCueService {
     bool EnsureShellRedLoaded();
     bool EnsureBananaLoaded();
     bool EnsureObstacleLoaded();
+    // Build + register the two procedural shortcut cues (the beep and the fifth chord) once.
+    bool EnsureShortcutLoaded();
     // Drive a looping cue on its own channel: start it once when it turns on, then just steer
     // pan/volume/pitch; stop it when it turns off. Shared by both shell loops. `ready` is the
     // result of the matching Ensure* call (ignored when on=false); `playing` is the per-loop
@@ -111,6 +130,7 @@ class AudioCueService {
     bool mBananaLoadFailed = false; // file missing: don't keep retrying every frame
     bool mObstacleReady = false;      // whether the obstacle collision-warning sound is loaded
     bool mObstacleLoadFailed = false; // file missing: don't keep retrying every frame
+    bool mShortcutReady = false;      // whether the procedural shortcut cues are built/registered
 
     // WAV buffers kept alive: the miniaudio decoders reference them. The generated cue
     // beeps and the sounds loaded from spaghetti.o2r both live here for the whole session.
@@ -123,4 +143,6 @@ class AudioCueService {
     std::vector<uint8_t> mShellRedBytes; // red spinning-shell loop WAV (from the archive)
     std::vector<uint8_t> mBananaBytes;  // grounded-banana WAV (from the archive)
     std::vector<uint8_t> mObstacleBytes; // obstacle collision-warning WAV (from the archive)
+    std::vector<uint8_t> mShortcutBeepWav; // procedural shortcut/route guidance beep
+    std::vector<uint8_t> mShortcutHitWav;  // procedural "take it now" fifth chord
 };

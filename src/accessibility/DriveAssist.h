@@ -32,7 +32,12 @@ class ScreenReaderService;
 class DriveAssist {
   public:
     void Reset();
-    void Tick(ScreenReaderService& reader);
+    // steerTarget (optional): a world point the steering guide should aim at INSTEAD of the
+    // main racing line - the ShortcutBeacon supplies its moving point on the shortcut route
+    // while it leads the kart through one. While overridden, the main-path-relative cues
+    // (curve calls, approach/traversal beeps, edge cue) pause: they describe exactly the line
+    // the kart is deliberately leaving and would fight the shortcut guidance.
+    void Tick(ScreenReaderService& reader, const float* steerTarget = nullptr);
 
   private:
     // Geometry-graded curve tightness. Normal has no spoken prefix.

@@ -122,4 +122,16 @@ inline constexpr const char* TURN_SUFFIX_LONG = " long";
 // "Hard left then easy right".
 inline constexpr const char* TURN_CHAIN = " then ";
 
+// Multi-path fork (Yoshi Valley): an advance heads-up spoken once per lap a little before the
+// kart reaches the forking section, where the track splits into four routes. It is a plain
+// warning - the player then navigates the split with the normal engine-pan steering guide.
+inline constexpr const char* MULTIPATH_FORK = "Fork ahead, four routes";
+
+// Shortcut beacon: spoken once per lap as a shortcut's fork comes into range, with the side it
+// leaves the road on (relative to the kart's heading at that moment), so the player knows where
+// to enter. The entrance beep then marks the exact spot and the chord rings as guidance latches.
+inline constexpr const char* SHORTCUT_AHEAD = "Shortcut ahead";
+inline constexpr const char* SHORTCUT_SIDE_LEFT = ", left";
+inline constexpr const char* SHORTCUT_SIDE_RIGHT = ", right";
+
 } // namespace AccessibilityStrings

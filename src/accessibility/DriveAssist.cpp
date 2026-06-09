@@ -338,7 +338,7 @@ void DriveAssist::Reset() {
     mSmoothedPan = 0.0f;
 }
 
-void DriveAssist::Tick(ScreenReaderService& reader) {
+void DriveAssist::Tick(ScreenReaderService& reader, const float* steerTarget) {
     const Player* player = gPlayerOne;
     if (player == nullptr) {
         Accessibility_SetKartAudioPan(0.0f);
@@ -374,7 +374,9 @@ void DriveAssist::Tick(ScreenReaderService& reader) {
 
     // --- Layer 4: Steering Guide (pure pursuit toward the racing line) --------------------
     // Aim at a look-ahead point on the line and pan the engine toward the side to steer, so the
-    // player drives TOWARD the sound (mirrors the game's own AI steering).
+    // player drives TOWARD the sound (mirrors the game's own AI steering). While the shortcut
+    // beacon is leading the kart along a shortcut it supplies the aim point instead, so the
+    // engine pan walks the player through the shortcut rather than back to the main path.
     {
         const float strength = std::clamp(
             CVarGetInteger(CVAR_ACCESS_DRIVE_PAN_STRENGTH, CVAR_ACCESS_DRIVE_PAN_STRENGTH_DEFAULT) / 100.0f,
@@ -385,7 +387,16 @@ void DriveAssist::Tick(ScreenReaderService& reader) {
         const int aheadIdx = (nearest + lookAhead) % count;
         const TrackPathPoint* tgt = &gTrackPaths[pathIndex][aheadIdx];
         f32 self[3] = { player->pos[0], player->pos[1], player->pos[2] };
-        f32 target[3] = { static_cast<f32>(tgt->x), static_cast<f32>(tgt->y), static_cast<f32>(tgt->z) };
+        f32 target[3];
+        if (steerTarget != nullptr) {
+            target[0] = steerTarget[0];
+            target[1] = steerTarget[1];
+            target[2] = steerTarget[2];
+        } else {
+            target[0] = static_cast<f32>(tgt->x);
+            target[1] = static_cast<f32>(tgt->y);
+            target[2] = static_cast<f32>(tgt->z);
+        }
         const int16_t bearing = static_cast<int16_t>(-get_angle_between_two_vectors(self, target));
         const int16_t error = static_cast<int16_t>(bearing - player->rotation[1]);
 
@@ -402,6 +413,14 @@ void DriveAssist::Tick(ScreenReaderService& reader) {
         }
         mSmoothedPan += (pan - mSmoothedPan) * kPanSmooth;
         Accessibility_SetKartAudioPan(mSmoothedPan);
+    }
+
+    // Shortcut override: the curve calls and the edge cue describe the main path - exactly the
+    // line the kart is deliberately leaving - so they pause until the shortcut hands back.
+    if (steerTarget != nullptr) {
+        AudioCueService::Instance().SetEdgeTone(false, 0.0f, 0.0f);
+        mEdgeBeepTimer = 0;
+        return;
     }
 
     // --- Layers 1-3: curve announcement, approach beeps, in-curve traversal beeps ----------

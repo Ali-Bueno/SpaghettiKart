@@ -11,6 +11,8 @@ enum HMAS_ChannelId {
     HMAS_SHELL_RED, // accessibility spinning red-shell loop: own channel so it overlaps the green/blue shell loop
     HMAS_BANANA,    // accessibility grounded-banana hazard blip: own channel so it overlaps the others
     HMAS_OBSTACLE,  // accessibility obstacle collision-warning blip: own channel so it overlaps the others
+    HMAS_SHORTCUT,  // accessibility shortcut entry guidance cue: own channel so it overlaps the others
+    HMAS_FORK,      // accessibility Yoshi-Valley fork alert (centered): own channel so the shortcut cue's per-frame stop never cuts it
     HMAS_MAX_CHANNELS
 };
 

@@ -11,6 +11,8 @@
 #include "ShellTracker.h"
 #include "BananaBeacon.h"
 #include "ObstacleBeacon.h"
+#include "ShortcutBeacon.h"
+#include "MultiPathGuide.h"
 
 /**
  * Top-level orchestrator for accessibility features.
@@ -46,6 +48,8 @@ class AccessibilityManager {
     ShellTracker mShellTracker;
     BananaBeacon mBananaBeacon;
     ObstacleBeacon mObstacleBeacon;
+    ShortcutBeacon mShortcutBeacon;
+    MultiPathGuide mMultiPathGuide;
 };
 
 extern "C" {

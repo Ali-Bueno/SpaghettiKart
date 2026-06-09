@@ -25,6 +25,8 @@ constexpr HMAS_AudioId kShellLoopId = 0x40ACCE56;
 constexpr HMAS_AudioId kBananaBeaconId = 0x40ACCE57;
 constexpr HMAS_AudioId kShellRedLoopId = 0x40ACCE58;
 constexpr HMAS_AudioId kObstacleBeaconId = 0x40ACCE59;
+constexpr HMAS_AudioId kShortcutBeepId = 0x40ACCE5A;
+constexpr HMAS_AudioId kShortcutHitId = 0x40ACCE5B;
 // Curve-related cues and the edge cue live on separate channels so a continuous
 // edge tone never cuts the curve beeps (and vice versa). The game itself only
 // uses HMAS_MUSIC, so HMAS_ENV, HMAS_SFX and HMAS_ACCESS are free for our cues.
@@ -35,6 +37,8 @@ constexpr HMAS_ChannelId kShellChannel = HMAS_SHELL;        // green/blue spinni
 constexpr HMAS_ChannelId kShellRedChannel = HMAS_SHELL_RED; // red spinning-shell loop
 constexpr HMAS_ChannelId kBananaChannel = HMAS_BANANA;      // grounded-banana hazard blip
 constexpr HMAS_ChannelId kObstacleChannel = HMAS_OBSTACLE;  // obstacle collision-warning blip
+constexpr HMAS_ChannelId kShortcutChannel = HMAS_SHORTCUT;  // shortcut entry guidance cue
+constexpr HMAS_ChannelId kForkChannel = HMAS_FORK;          // Yoshi-Valley fork alert (centered)
 
 // Sounds packed into spaghetti.o2r and loaded from the game archive (not loose files), so
 // players cannot swap them - keeping the authentic Nintendo-style cues intact. These are
@@ -80,8 +84,11 @@ double WaveSample(Wave wave, double phase) {
 // Build a 16-bit mono PCM WAV of a tone with the given waveform. When ramp is true
 // the tone gets a short attack/release so one-shot beeps don't click. When false
 // the amplitude is constant; pass a whole number of cycles for `samples` so the
-// buffer can be looped seamlessly as a steady held tone.
-void BuildBeepWav(std::vector<uint8_t>& out, float freq, int samples, Wave wave, bool ramp = true) {
+// buffer can be looped seamlessly as a steady held tone. When freq2 > 0 a second
+// partial is mixed in at half amplitude each (so the sum can't clip) - used to make
+// the shortcut "take it now" chord (a perfect fifth = root + fifth).
+void BuildBeepWav(std::vector<uint8_t>& out, float freq, int samples, Wave wave, bool ramp = true,
+                  float freq2 = 0.0f) {
     const uint32_t dataSize = static_cast<uint32_t>(samples) * 2;
     out.clear();
     out.reserve(44 + dataSize);
@@ -112,7 +119,9 @@ void BuildBeepWav(std::vector<uint8_t>& out, float freq, int samples, Wave wave,
     const int rampLen = ramp ? samples / 8 : 0;
     for (int i = 0; i < samples; ++i) {
         const double t = static_cast<double>(i) / kSampleRate;
-        const double s = WaveSample(wave, freq * t);
+        const double s = (freq2 > 0.0f)
+                             ? 0.5 * (WaveSample(wave, freq * t) + WaveSample(wave, freq2 * t))
+                             : WaveSample(wave, freq * t);
         double gain = 1.0;
         if (rampLen > 0) {
             if (i < rampLen) {
@@ -385,4 +394,73 @@ void AudioCueService::StopObstacleBeacon() {
         return;
     }
     GameEngine::Instance->gHMAS->Stop(kObstacleChannel);
+}
+
+bool AudioCueService::EnsureShortcutLoaded() {
+    if (mShortcutReady) {
+        return true;
+    }
+    if (GameEngine::Instance == nullptr || GameEngine::Instance->gHMAS == nullptr) {
+        return false;
+    }
+    if (mShortcutBeepWav.empty()) {
+        // A bright, attention-grabbing saw beep for guidance toward the entry, and a clean
+        // two-note fifth chord (A4 440 Hz + E5 660 Hz) for "you are on the spot" - both built
+        // procedurally so no game sound is reused and they are unmistakably the route cue.
+        BuildBeepWav(mShortcutBeepWav, 600.0f, 2600, Wave::Saw);
+        BuildBeepWav(mShortcutHitWav, 440.0f, 4000, Wave::Sine, true, 660.0f);
+    }
+    HMAS* hmas = GameEngine::Instance->gHMAS;
+    if (!hmas->IsIDRegistered(kShortcutBeepId)) {
+        hmas->RegisterSound(kShortcutBeepId, mShortcutBeepWav.data(),
+                            static_cast<uint32_t>(mShortcutBeepWav.size()));
+    }
+    if (!hmas->IsIDRegistered(kShortcutHitId)) {
+        hmas->RegisterSound(kShortcutHitId, mShortcutHitWav.data(),
+                            static_cast<uint32_t>(mShortcutHitWav.size()));
+    }
+    mShortcutReady = hmas->IsIDRegistered(kShortcutBeepId) && hmas->IsIDRegistered(kShortcutHitId);
+    return mShortcutReady;
+}
+
+void AudioCueService::PlayShortcutBeep(float pitch, float pan) {
+    if (!EnsureShortcutLoaded()) {
+        return;
+    }
+    HMAS* hmas = GameEngine::Instance->gHMAS;
+    hmas->Play(kShortcutChannel, kShortcutBeepId, false);
+    hmas->SetPan(kShortcutChannel, std::clamp(pan, -1.0f, 1.0f));
+    hmas->SetPitch(kShortcutChannel, std::clamp(pitch, 0.25f, 3.0f));
+    hmas->SetVolume(kShortcutChannel, kBeepVolume);
+}
+
+void AudioCueService::PlayShortcutHit(float pan) {
+    if (!EnsureShortcutLoaded()) {
+        return;
+    }
+    HMAS* hmas = GameEngine::Instance->gHMAS;
+    hmas->Play(kShortcutChannel, kShortcutHitId, false);
+    hmas->SetPan(kShortcutChannel, std::clamp(pan, -1.0f, 1.0f));
+    hmas->SetPitch(kShortcutChannel, 1.0f);
+    hmas->SetVolume(kShortcutChannel, kBeepVolume + 0.15f);
+}
+
+void AudioCueService::StopShortcutCue() {
+    if (!mShortcutReady) {
+        return;
+    }
+    GameEngine::Instance->gHMAS->Stop(kShortcutChannel);
+}
+
+void AudioCueService::PlayForkAlert() {
+    if (!EnsureShortcutLoaded()) {
+        return;
+    }
+    HMAS* hmas = GameEngine::Instance->gHMAS;
+    // Reuse the fifth chord, but on its own channel and always centered, so it reads as a
+    // non-directional alert and is never cut by the shortcut cue's per-frame stop.
+    hmas->Play(kForkChannel, kShortcutHitId, false);
+    hmas->SetPan(kForkChannel, 0.0f);
+    hmas->SetPitch(kForkChannel, 1.0f);
+    hmas->SetVolume(kForkChannel, kBeepVolume + 0.15f);
 }
