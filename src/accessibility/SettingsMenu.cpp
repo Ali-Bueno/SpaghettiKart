@@ -45,6 +45,7 @@ constexpr int kCueItemBox = 4;
 constexpr int kCueShell = 5;
 constexpr int kCueBanana = 6;
 constexpr int kCueObstacle = 7;
+constexpr int kCueShellRed = 8;
 
 // Game-input block id used while capturing a control rebind (arbitrary, unique).
 constexpr int kRebindBlockId = 0x52424E44; // 'RBND'
@@ -236,10 +237,16 @@ const Option kAccessibility[] = {
               "Press Z to hear an example.",
       .cueExample = kCueItemBox },
     { .label = "Help: spinning shell cue", .kind = OptKind::Info,
-      .help = "When a shell is thrown and flying across the track - by you or a rival - a looping whoosh "
-              "plays, panned toward the shell and dropping in pitch once it is behind you, so you can hear "
-              "an incoming shell and where it is. It stops when no shell is moving. Press Z to hear an example.",
+      .help = "When a green or blue shell is thrown and flying across the track - by you or a rival - a "
+              "looping whoosh plays, panned toward the shell and dropping in pitch once it is behind you, so "
+              "you can hear an incoming shell and where it is. The red shell has its own distinct sound, "
+              "explained in the next entry. It stops when no shell is moving. Press Z to hear an example.",
       .cueExample = kCueShell },
+    { .label = "Help: red shell cue", .kind = OptKind::Info,
+      .help = "A red shell - the one that homes in on a target - plays its own looping whoosh, different "
+              "from the green and blue shells so you can recognize an incoming homing shell by ear. It is "
+              "panned toward the shell and drops in pitch once it is behind you. Press Z to hear an example.",
+      .cueExample = kCueShellRed },
     { .label = "Help: banana cue", .kind = OptKind::Info,
       .help = "A blip points toward the nearest banana lying on the track: panned to its side and louder as "
               "you get closer, dropping in pitch once it is behind you, so you can steer clear. It sounds "
@@ -615,7 +622,9 @@ enum {
     DEMO_SHELL_ON = 4,
     DEMO_SHELL_OFF = 5,
     DEMO_BANANA = 6,
-    DEMO_OBSTACLE = 7
+    DEMO_OBSTACLE = 7,
+    DEMO_SHELL_RED_ON = 8,
+    DEMO_SHELL_RED_OFF = 9
 };
 struct DemoStep {
     int wait;       // ticks to wait before firing this step
@@ -674,6 +683,17 @@ const DemoStep kShellDemo[] = {
     { 14, DEMO_SHELL_ON,  CueBeep::Approach, 0.80f,  0.5f, 0.70f }, // behind now: lower pitch
     { 14, DEMO_SHELL_ON,  CueBeep::Approach, 0.72f,  0.9f, 0.40f }, // receding right-behind
     { 16, DEMO_SHELL_OFF, CueBeep::Approach, 0.00f,  0.0f, 0.00f },
+};
+
+// Red shell: the same in-flight Doppler sweep as the green/blue shell, but its own distinct
+// sound (a homing red shell) so it is recognizable by ear. Fields are pitch, pan, volume.
+const DemoStep kShellRedDemo[] = {
+    { 0,  DEMO_SHELL_RED_ON,  CueBeep::Approach, 1.00f, -0.9f, 0.45f }, // far left, approaching
+    { 14, DEMO_SHELL_RED_ON,  CueBeep::Approach, 1.00f, -0.4f, 0.70f }, // closing in
+    { 14, DEMO_SHELL_RED_ON,  CueBeep::Approach, 1.00f,  0.0f, 0.90f }, // passing right in front
+    { 14, DEMO_SHELL_RED_ON,  CueBeep::Approach, 0.80f,  0.5f, 0.70f }, // behind now: lower pitch
+    { 14, DEMO_SHELL_RED_ON,  CueBeep::Approach, 0.72f,  0.9f, 0.40f }, // receding right-behind
+    { 16, DEMO_SHELL_RED_OFF, CueBeep::Approach, 0.00f,  0.0f, 0.00f },
 };
 
 // Banana hazard: blips approaching a banana on the track (panning toward center, growing
@@ -853,6 +873,12 @@ class SettingsMenu {
             case DEMO_SHELL_OFF:
                 AudioCueService::Instance().SetShellLoop(false, 0.0f, 0.0f, 1.0f);
                 break;
+            case DEMO_SHELL_RED_ON:
+                AudioCueService::Instance().SetShellRedLoop(true, s.pan, s.volume, s.pitch);
+                break;
+            case DEMO_SHELL_RED_OFF:
+                AudioCueService::Instance().SetShellRedLoop(false, 0.0f, 0.0f, 1.0f);
+                break;
             case DEMO_BANANA:
                 AudioCueService::Instance().PlayBananaBeacon(s.pan, s.volume, s.pitch);
                 break;
@@ -883,6 +909,7 @@ class SettingsMenu {
             case kCueEdge:     mDemo = kEdgeDemo;     mDemoLen = ARRAY_LEN(kEdgeDemo);     break;
             case kCueItemBox:  mDemo = kItemBoxDemo;  mDemoLen = ARRAY_LEN(kItemBoxDemo);  break;
             case kCueShell:    mDemo = kShellDemo;    mDemoLen = ARRAY_LEN(kShellDemo);    break;
+            case kCueShellRed: mDemo = kShellRedDemo; mDemoLen = ARRAY_LEN(kShellRedDemo); break;
             case kCueBanana:   mDemo = kBananaDemo;   mDemoLen = ARRAY_LEN(kBananaDemo);   break;
             case kCueObstacle: mDemo = kObstacleDemo; mDemoLen = ARRAY_LEN(kObstacleDemo); break;
             default:           return; // no example for this entry
@@ -894,6 +921,7 @@ class SettingsMenu {
         if (mDemo != nullptr) {
             AudioCueService::Instance().SetEdgeTone(false, 0.0f, 0.0f);   // kill any held tone
             AudioCueService::Instance().StopShellLoop();                  // kill any held shell loop
+            AudioCueService::Instance().StopShellRedLoop();               // kill any held red-shell loop
         }
         mDemo = nullptr;
         mDemoLen = 0;
